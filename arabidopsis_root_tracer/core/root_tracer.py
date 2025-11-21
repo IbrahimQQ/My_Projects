@@ -16,14 +16,17 @@ import heapq
 class RootTracer:
     """
     Semi-automatic root tracing for white roots on black background.
+    Supports multiple main roots per image.
     """
 
     def __init__(self):
         self._image: Optional[np.ndarray] = None
         self._skeleton: Optional[np.ndarray] = None
         self._binary_mask: Optional[np.ndarray] = None
-        self._main_root_points: List[Tuple[int, int]] = []
-        self._lateral_roots: List[Dict] = []  # List of {points: [], start_index: int}
+        # Support multiple main roots
+        self._main_roots: List[Dict] = []  # List of {id: int, points: List, laterals: List}
+        self._current_root_id: int = 0
+        self._next_root_id: int = 1
         self._threshold: int = 30
 
     def set_image(self, image: np.ndarray):
@@ -61,26 +64,19 @@ class RootTracer:
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)
 
-    def trace_main_root(self, start_point: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def trace_main_root(self, start_point: Tuple[int, int]) -> Dict:
         """
-        Trace the main root from a starting point.
-
-        The algorithm:
-        1. Find nearest skeleton point to click
-        2. Trace along skeleton, preferring downward direction (root grows down)
-        3. Continue until end of skeleton
+        Trace a main root from a starting point.
+        Adds to the list of main roots (supports multiple roots per slice).
 
         Args:
             start_point: (x, y) starting point from user click
 
         Returns:
-            List of (x, y) points along the main root
+            Dict with root data {id, points, laterals}
         """
         if self._skeleton is None:
-            return []
-
-        self._main_root_points = []
-        self._lateral_roots = []
+            return {}
 
         x, y = start_point
         height, width = self._skeleton.shape
@@ -92,13 +88,40 @@ class RootTracer:
         # Find nearest skeleton point
         start = self._find_nearest_skeleton_point(x, y)
         if start is None:
-            return []
+            return {}
 
-        # Trace the main root using weighted path finding
-        # Prefer going downward (roots grow down)
-        self._main_root_points = self._trace_from_point(start)
+        # Get existing main root masks to avoid
+        existing_mask = self._get_all_main_roots_mask()
 
-        return self._main_root_points.copy()
+        # Trace the main root - improved algorithm
+        points = self._trace_main_root_improved(start, existing_mask)
+
+        if not points:
+            return {}
+
+        # Create new root entry
+        root_data = {
+            'id': self._next_root_id,
+            'points': points,
+            'laterals': []
+        }
+        self._main_roots.append(root_data)
+        self._current_root_id = self._next_root_id
+        self._next_root_id += 1
+
+        return root_data
+
+    def _get_all_main_roots_mask(self) -> np.ndarray:
+        """Get mask of all existing main root points."""
+        if self._skeleton is None:
+            return np.array([])
+
+        mask = np.zeros_like(self._skeleton, dtype=bool)
+        for root in self._main_roots:
+            for x, y in root['points']:
+                if 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1]:
+                    mask[y, x] = True
+        return mask
 
     def _find_nearest_skeleton_point(self, x: int, y: int,
                                       max_distance: int = 50) -> Optional[Tuple[int, int]]:
@@ -119,107 +142,175 @@ class RootTracer:
                                 return (nx, ny)
         return None
 
-    def _trace_from_point(self, start: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def _trace_main_root_improved(self, start: Tuple[int, int],
+                                   avoid_mask: np.ndarray) -> List[Tuple[int, int]]:
         """
-        Trace along skeleton from start point, preferring downward direction.
+        Improved main root tracing that follows the main stem.
+        Uses direction momentum to avoid branching into laterals.
         """
         if self._skeleton is None:
             return []
 
         height, width = self._skeleton.shape
         visited = np.zeros_like(self._skeleton, dtype=bool)
+
+        # Also avoid already traced roots
+        if avoid_mask.size > 0:
+            visited = visited | avoid_mask
+
         path = [start]
         visited[start[1], start[0]] = True
 
-        # 8-connectivity neighbors (ordered by preference for downward growth)
-        # Down, down-left, down-right, left, right, up-left, up-right, up
+        # 8-connectivity neighbors
         neighbors = [(0, 1), (-1, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (1, -1), (0, -1)]
 
         current = start
+        # Initial direction - assume downward
+        prev_direction = (0, 1)
+
         while True:
             x, y = current
             best_next = None
-            best_score = -1
+            best_score = -float('inf')
 
+            candidates = []
             for dx, dy in neighbors:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < width and 0 <= ny < height:
                     if self._skeleton[ny, nx] and not visited[ny, nx]:
-                        # Score based on direction (prefer downward)
-                        score = dy + 1  # +2 for down, +1 for horizontal, 0 for up
-                        if score > best_score:
-                            best_score = score
-                            best_next = (nx, ny)
+                        candidates.append((nx, ny, dx, dy))
 
-            if best_next is None:
-                # Try to jump small gaps
-                best_next = self._find_continuation(current, visited, max_gap=5)
+            if not candidates:
+                # Try to jump small gaps in the downward direction
+                best_next = self._find_continuation_improved(current, visited, prev_direction)
                 if best_next is None:
                     break
+                path.append(best_next)
+                visited[best_next[1], best_next[0]] = True
+                current = best_next
+                continue
+
+            # Score each candidate based on:
+            # 1. Continuation of direction (momentum)
+            # 2. Preference for downward movement
+            # 3. Avoid sharp turns
+            for nx, ny, dx, dy in candidates:
+                # Direction similarity to previous direction
+                direction_score = prev_direction[0] * dx + prev_direction[1] * dy
+
+                # Strong preference for downward (roots grow down)
+                downward_score = dy * 3  # +3 for down, 0 for horizontal, -3 for up
+
+                # Slight preference for straight lines
+                straight_score = 1 if (dx == prev_direction[0] and dy == prev_direction[1]) else 0
+
+                total_score = direction_score * 2 + downward_score + straight_score
+
+                if total_score > best_score:
+                    best_score = total_score
+                    best_next = (nx, ny)
+                    new_direction = (dx, dy)
+
+            if best_next is None:
+                break
 
             path.append(best_next)
             visited[best_next[1], best_next[0]] = True
+
+            # Update direction with some smoothing
+            prev_direction = new_direction
             current = best_next
 
         return path
 
-    def _find_continuation(self, current: Tuple[int, int], visited: np.ndarray,
-                           max_gap: int = 5) -> Optional[Tuple[int, int]]:
-        """Find continuation of path after a gap in skeleton."""
+    def _find_continuation_improved(self, current: Tuple[int, int], visited: np.ndarray,
+                                     direction: Tuple[int, int], max_gap: int = 8) -> Optional[Tuple[int, int]]:
+        """Find continuation of path after a gap, preferring current direction."""
         if self._skeleton is None:
             return None
 
         height, width = self._skeleton.shape
         x, y = current
+        dx_dir, dy_dir = direction
 
-        # Search in a cone below the current point
         best_point = None
-        best_distance = max_gap + 1
+        best_score = -float('inf')
 
-        for dy in range(1, max_gap + 1):
-            for dx in range(-dy, dy + 1):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < height:
-                    if self._skeleton[ny, nx] and not visited[ny, nx]:
-                        dist = abs(dx) + dy
-                        if dist < best_distance:
-                            best_distance = dist
-                            best_point = (nx, ny)
+        # Search in a larger area, but score by alignment with direction
+        for dist in range(1, max_gap + 1):
+            for dy in range(-dist, dist + 1):
+                for dx in range(-dist, dist + 1):
+                    if abs(dx) <= dist and abs(dy) <= dist:
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < width and 0 <= ny < height:
+                            if self._skeleton[ny, nx] and not visited[ny, nx]:
+                                # Score by alignment with direction and distance
+                                if dx != 0 or dy != 0:
+                                    mag = np.sqrt(dx*dx + dy*dy)
+                                    alignment = (dx * dx_dir + dy * dy_dir) / mag
+                                else:
+                                    alignment = 0
+
+                                # Prefer downward continuation
+                                down_bonus = dy * 2 if dy > 0 else 0
+
+                                score = alignment * 3 + down_bonus - dist * 0.5
+
+                                if score > best_score:
+                                    best_score = score
+                                    best_point = (nx, ny)
 
         return best_point
 
-    def trace_lateral_roots(self) -> List[Dict]:
+    def trace_laterals_for_root(self, root_id: int) -> List[Dict]:
         """
-        Trace lateral roots branching from the main root.
+        Trace lateral roots for a specific main root.
+
+        Args:
+            root_id: ID of the main root
 
         Returns:
-            List of dictionaries with:
-                - 'points': List of (x, y) points
-                - 'start_index': Index on main root where lateral starts
-                - 'branch_point': (x, y) where lateral branches from main
+            List of lateral root dictionaries
         """
-        if self._skeleton is None or not self._main_root_points:
+        if self._skeleton is None:
             return []
 
-        self._lateral_roots = []
+        # Find the root
+        root = None
+        root_idx = -1
+        for i, r in enumerate(self._main_roots):
+            if r['id'] == root_id:
+                root = r
+                root_idx = i
+                break
+
+        if root is None or not root['points']:
+            return []
+
+        main_points = root['points']
         height, width = self._skeleton.shape
 
-        # Create mask of main root
+        # Create mask of this main root
         main_root_mask = np.zeros_like(self._skeleton, dtype=bool)
-        for x, y in self._main_root_points:
+        for x, y in main_points:
             main_root_mask[y, x] = True
 
-        # Dilate main root mask slightly to find branch points
+        # Dilate main root mask slightly
         dilated_main = binary_dilation(main_root_mask, iterations=2)
 
-        # Find skeleton points that are near but not on main root
-        branch_candidates = self._skeleton & dilated_main & ~main_root_mask
-
-        # For each main root point, check for branches
+        # Track visited for laterals
         visited_laterals = np.zeros_like(self._skeleton, dtype=bool)
 
-        for idx, (mx, my) in enumerate(self._main_root_points):
-            # Check 8-neighborhood for branch points
+        # Mark existing laterals as visited
+        for lat in root['laterals']:
+            for px, py in lat['points']:
+                if 0 <= py < height and 0 <= px < width:
+                    visited_laterals[py, px] = True
+
+        new_laterals = []
+
+        for idx, (mx, my) in enumerate(main_points):
+            # Check neighborhood for branch points
             for dx in range(-3, 4):
                 for dy in range(-3, 4):
                     nx, ny = mx + dx, my + dy
@@ -227,18 +318,23 @@ class RootTracer:
                         if (self._skeleton[ny, nx] and
                             not main_root_mask[ny, nx] and
                             not visited_laterals[ny, nx]):
-                            # Found a potential lateral root start
+                            # Trace lateral
                             lateral_points = self._trace_lateral(
                                 (nx, ny), main_root_mask, visited_laterals
                             )
                             if len(lateral_points) > 5:  # Minimum length
-                                self._lateral_roots.append({
+                                lateral_data = {
+                                    'id': len(root['laterals']) + len(new_laterals) + 1,
                                     'points': lateral_points,
                                     'start_index': idx,
                                     'branch_point': (mx, my)
-                                })
+                                }
+                                new_laterals.append(lateral_data)
 
-        return self._lateral_roots.copy()
+        # Add new laterals to the root
+        root['laterals'].extend(new_laterals)
+
+        return new_laterals
 
     def _trace_lateral(self, start: Tuple[int, int], main_root_mask: np.ndarray,
                        visited: np.ndarray) -> List[Tuple[int, int]]:
@@ -276,13 +372,228 @@ class RootTracer:
 
         return path
 
-    def get_main_root_points(self) -> List[Tuple[int, int]]:
-        """Get the traced main root points."""
-        return self._main_root_points.copy()
+    def add_manual_lateral(self, root_id: int, start_point: Tuple[int, int],
+                           end_point: Tuple[int, int]) -> Optional[Dict]:
+        """
+        Add a manual lateral root by tracing between two points.
 
-    def get_lateral_roots(self) -> List[Dict]:
-        """Get all traced lateral roots."""
-        return self._lateral_roots.copy()
+        Args:
+            root_id: ID of the main root to attach to
+            start_point: Start point (should be near main root)
+            end_point: End point of lateral
+
+        Returns:
+            Lateral data dict or None
+        """
+        if self._skeleton is None:
+            return None
+
+        # Find the root
+        root = None
+        for r in self._main_roots:
+            if r['id'] == root_id:
+                root = r
+                break
+
+        if root is None:
+            return None
+
+        # Find nearest point on main root
+        main_points = root['points']
+        min_dist = float('inf')
+        branch_idx = 0
+        branch_point = main_points[0] if main_points else start_point
+
+        for idx, (mx, my) in enumerate(main_points):
+            dist = (mx - start_point[0])**2 + (my - start_point[1])**2
+            if dist < min_dist:
+                min_dist = dist
+                branch_idx = idx
+                branch_point = (mx, my)
+
+        # Find skeleton path from start to end
+        start_skel = self._find_nearest_skeleton_point(start_point[0], start_point[1])
+        end_skel = self._find_nearest_skeleton_point(end_point[0], end_point[1])
+
+        if start_skel is None or end_skel is None:
+            # Fall back to straight line
+            points = self._generate_line_points(start_point, end_point)
+        else:
+            # Try to trace along skeleton
+            points = self._trace_between_points(start_skel, end_skel)
+            if not points:
+                points = self._generate_line_points(start_point, end_point)
+
+        if len(points) < 2:
+            return None
+
+        lateral_data = {
+            'id': len(root['laterals']) + 1,
+            'points': points,
+            'start_index': branch_idx,
+            'branch_point': branch_point,
+            'manual': True
+        }
+        root['laterals'].append(lateral_data)
+
+        return lateral_data
+
+    def _generate_line_points(self, start: Tuple[int, int],
+                               end: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Generate points along a straight line."""
+        x1, y1 = start
+        x2, y2 = end
+
+        points = []
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+        err = dx - dy
+
+        x, y = x1, y1
+        while True:
+            points.append((x, y))
+            if x == x2 and y == y2:
+                break
+            e2 = 2 * err
+            if e2 > -dy:
+                err -= dy
+                x += sx
+            if e2 < dx:
+                err += dx
+                y += sy
+
+        return points
+
+    def _trace_between_points(self, start: Tuple[int, int],
+                               end: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Trace skeleton between two points using BFS."""
+        if self._skeleton is None:
+            return []
+
+        height, width = self._skeleton.shape
+        visited = np.zeros_like(self._skeleton, dtype=bool)
+        parent = {}
+
+        queue = deque([start])
+        visited[start[1], start[0]] = True
+        parent[start] = None
+
+        neighbors = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, 1), (1, -1), (-1, -1)]
+
+        found = False
+        while queue and not found:
+            current = queue.popleft()
+
+            if current == end:
+                found = True
+                break
+
+            x, y = current
+            for dx, dy in neighbors:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    if self._skeleton[ny, nx] and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        parent[(nx, ny)] = current
+                        queue.append((nx, ny))
+
+                        if (nx, ny) == end:
+                            found = True
+                            break
+
+        if not found:
+            return []
+
+        # Reconstruct path
+        path = []
+        current = end
+        while current is not None:
+            path.append(current)
+            current = parent.get(current)
+
+        return list(reversed(path))
+
+    def delete_lateral(self, root_id: int, lateral_id: int) -> bool:
+        """
+        Delete a lateral root.
+
+        Args:
+            root_id: ID of the main root
+            lateral_id: ID of the lateral to delete
+
+        Returns:
+            True if deleted successfully
+        """
+        for root in self._main_roots:
+            if root['id'] == root_id:
+                for i, lat in enumerate(root['laterals']):
+                    if lat['id'] == lateral_id:
+                        root['laterals'].pop(i)
+                        return True
+        return False
+
+    def delete_main_root(self, root_id: int) -> bool:
+        """Delete a main root and all its laterals."""
+        for i, root in enumerate(self._main_roots):
+            if root['id'] == root_id:
+                self._main_roots.pop(i)
+                return True
+        return False
+
+    def find_lateral_at_point(self, x: int, y: int, tolerance: int = 10) -> Optional[Tuple[int, int]]:
+        """
+        Find a lateral root near a point.
+
+        Args:
+            x, y: Point coordinates
+            tolerance: Search radius
+
+        Returns:
+            Tuple of (root_id, lateral_id) or None
+        """
+        for root in self._main_roots:
+            for lat in root['laterals']:
+                for px, py in lat['points']:
+                    if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
+                        return (root['id'], lat['id'])
+        return None
+
+    def find_main_root_at_point(self, x: int, y: int, tolerance: int = 10) -> Optional[int]:
+        """
+        Find a main root near a point.
+
+        Returns:
+            Root ID or None
+        """
+        for root in self._main_roots:
+            for px, py in root['points']:
+                if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
+                    return root['id']
+        return None
+
+    def get_all_roots(self) -> List[Dict]:
+        """Get all main roots with their laterals."""
+        return self._main_roots.copy()
+
+    def get_root(self, root_id: int) -> Optional[Dict]:
+        """Get a specific root by ID."""
+        for root in self._main_roots:
+            if root['id'] == root_id:
+                return root.copy()
+        return None
+
+    def get_current_root_id(self) -> int:
+        """Get the current active root ID."""
+        return self._current_root_id
+
+    def set_current_root_id(self, root_id: int):
+        """Set the current active root ID."""
+        for root in self._main_roots:
+            if root['id'] == root_id:
+                self._current_root_id = root_id
+                return
 
     def get_binary_mask(self) -> Optional[np.ndarray]:
         """Get the binary mask for debugging."""
@@ -294,8 +605,17 @@ class RootTracer:
 
     def clear_tracings(self):
         """Clear all tracings."""
-        self._main_root_points = []
-        self._lateral_roots = []
+        self._main_roots = []
+        self._current_root_id = 0
+        self._next_root_id = 1
+
+    def set_data(self, roots: List[Dict]):
+        """Restore root data (for loading saved state)."""
+        self._main_roots = roots
+        if roots:
+            max_id = max(r['id'] for r in roots)
+            self._next_root_id = max_id + 1
+            self._current_root_id = roots[-1]['id']
 
 
 class MeasurementCalculator:
@@ -303,27 +623,30 @@ class MeasurementCalculator:
 
     @staticmethod
     def calculate_path_length(points: List[Tuple[int, int]],
-                              pixel_size: float = 1.0) -> float:
+                              pixels_per_unit: float = 1.0) -> float:
         """
-        Calculate the length of a path in pixels or real units.
+        Calculate the length of a path in real units.
 
         Args:
             points: List of (x, y) points
-            pixel_size: Size of one pixel in real units
+            pixels_per_unit: Number of pixels per unit (e.g., 161 px/cm)
 
         Returns:
-            Path length
+            Path length in real units
         """
         if len(points) < 2:
             return 0.0
 
-        length = 0.0
+        length_pixels = 0.0
         for i in range(1, len(points)):
             x1, y1 = points[i - 1]
             x2, y2 = points[i]
-            length += np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            length_pixels += np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-        return length * pixel_size
+        # Convert pixels to units
+        if pixels_per_unit > 0:
+            return length_pixels / pixels_per_unit
+        return length_pixels
 
     @staticmethod
     def calculate_lateral_angle(main_root_points: List[Tuple[int, int]],
@@ -339,7 +662,6 @@ class MeasurementCalculator:
             return 0.0
 
         # Get direction vectors
-        # Main root direction at branch point
         idx = branch_index
         if idx < len(main_root_points) - 1:
             main_dx = main_root_points[idx + 1][0] - main_root_points[idx][0]
@@ -350,9 +672,12 @@ class MeasurementCalculator:
         else:
             return 0.0
 
-        # Lateral direction (first segment)
-        lat_dx = lateral_points[1][0] - lateral_points[0][0]
-        lat_dy = lateral_points[1][1] - lateral_points[0][1]
+        # Lateral direction (average of first few segments for stability)
+        lat_dx, lat_dy = 0, 0
+        num_segs = min(5, len(lateral_points) - 1)
+        for i in range(num_segs):
+            lat_dx += lateral_points[i + 1][0] - lateral_points[i][0]
+            lat_dy += lateral_points[i + 1][1] - lateral_points[i][1]
 
         # Calculate angle
         main_mag = np.sqrt(main_dx ** 2 + main_dy ** 2)
@@ -363,7 +688,7 @@ class MeasurementCalculator:
 
         dot = main_dx * lat_dx + main_dy * lat_dy
         cos_angle = dot / (main_mag * lat_mag)
-        cos_angle = max(-1, min(1, cos_angle))  # Clamp for numerical stability
+        cos_angle = max(-1, min(1, cos_angle))
 
         angle = np.degrees(np.arccos(cos_angle))
         return angle
@@ -371,15 +696,15 @@ class MeasurementCalculator:
     @staticmethod
     def get_branch_position(main_root_points: List[Tuple[int, int]],
                             branch_index: int,
-                            pixel_size: float = 1.0) -> float:
+                            pixels_per_unit: float = 1.0) -> float:
         """
         Get the distance along main root where a lateral branches.
 
         Returns:
-            Distance from main root start to branch point
+            Distance from main root start to branch point in real units
         """
         if branch_index <= 0:
             return 0.0
 
         points_to_branch = main_root_points[:branch_index + 1]
-        return MeasurementCalculator.calculate_path_length(points_to_branch, pixel_size)
+        return MeasurementCalculator.calculate_path_length(points_to_branch, pixels_per_unit)
