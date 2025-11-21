@@ -616,6 +616,158 @@ class RootTracer:
             max_id = max(r['id'] for r in roots)
             self._next_root_id = max_id + 1
             self._current_root_id = roots[-1]['id']
+        else:
+            self._current_root_id = 0
+            self._next_root_id = 1
+
+    def get_live_trace_preview(self, start_point: Tuple[int, int],
+                                end_point: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Get a live preview trace from start to end point.
+        Used for interactive tracing where user drags to define the root.
+
+        Args:
+            start_point: (x, y) starting point
+            end_point: (x, y) current mouse position
+
+        Returns:
+            List of (x, y) points along the traced path
+        """
+        if self._skeleton is None:
+            return []
+
+        height, width = self._skeleton.shape
+
+        # Find nearest skeleton points
+        start = self._find_nearest_skeleton_point(start_point[0], start_point[1], max_distance=30)
+        end = self._find_nearest_skeleton_point(end_point[0], end_point[1], max_distance=30)
+
+        if start is None:
+            return []
+
+        if end is None:
+            # If end not on skeleton, trace downward from start toward end
+            return self._trace_toward_point(start, end_point)
+
+        # Use A* pathfinding along skeleton
+        path = self._astar_trace(start, end)
+        return path
+
+    def _trace_toward_point(self, start: Tuple[int, int],
+                            target: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Trace along skeleton toward a target point."""
+        if self._skeleton is None:
+            return []
+
+        height, width = self._skeleton.shape
+        visited = np.zeros_like(self._skeleton, dtype=bool)
+        path = [start]
+        visited[start[1], start[0]] = True
+
+        neighbors = [(0, 1), (-1, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (1, -1), (0, -1)]
+        current = start
+        target_y = target[1]
+
+        # Trace until we pass the target Y or run out of skeleton
+        while current[1] < target_y + 20:
+            x, y = current
+            best_next = None
+            best_score = -float('inf')
+
+            for dx, dy in neighbors:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < width and 0 <= ny < height:
+                    if self._skeleton[ny, nx] and not visited[ny, nx]:
+                        # Score: prefer moving toward target
+                        dist_to_target = abs(nx - target[0]) + abs(ny - target[1])
+                        downward_bonus = dy * 5  # Strong downward preference
+                        score = -dist_to_target + downward_bonus
+
+                        if score > best_score:
+                            best_score = score
+                            best_next = (nx, ny)
+
+            if best_next is None:
+                break
+
+            path.append(best_next)
+            visited[best_next[1], best_next[0]] = True
+            current = best_next
+
+        return path
+
+    def _astar_trace(self, start: Tuple[int, int],
+                     end: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """A* pathfinding along skeleton from start to end."""
+        if self._skeleton is None:
+            return []
+
+        height, width = self._skeleton.shape
+
+        def heuristic(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        open_set = [(0, start)]
+        came_from = {}
+        g_score = {start: 0}
+        f_score = {start: heuristic(start, end)}
+
+        neighbors = [(0, 1), (-1, 1), (1, 1), (-1, 0), (1, 0), (-1, -1), (1, -1), (0, -1)]
+
+        while open_set:
+            _, current = heapq.heappop(open_set)
+
+            if current == end:
+                # Reconstruct path
+                path = [current]
+                while current in came_from:
+                    current = came_from[current]
+                    path.append(current)
+                return list(reversed(path))
+
+            x, y = current
+            for dx, dy in neighbors:
+                nx, ny = x + dx, y + dy
+                neighbor = (nx, ny)
+
+                if 0 <= nx < width and 0 <= ny < height and self._skeleton[ny, nx]:
+                    # Cost: 1 for cardinal, 1.414 for diagonal
+                    move_cost = 1.414 if (dx != 0 and dy != 0) else 1.0
+                    tentative_g = g_score[current] + move_cost
+
+                    if neighbor not in g_score or tentative_g < g_score[neighbor]:
+                        came_from[neighbor] = current
+                        g_score[neighbor] = tentative_g
+                        f = tentative_g + heuristic(neighbor, end)
+                        f_score[neighbor] = f
+                        heapq.heappush(open_set, (f, neighbor))
+
+        # No path found - return trace toward end
+        return self._trace_toward_point(start, end)
+
+    def add_root_from_points(self, points: List[Tuple[int, int]]) -> Dict:
+        """
+        Add a root directly from a list of points (for live trace mode).
+
+        Args:
+            points: List of (x, y) points defining the root
+
+        Returns:
+            Dict with root data
+        """
+        if not points:
+            return {}
+
+        root_data = {
+            'id': self._next_root_id,
+            'points': points,
+            'laterals': []
+        }
+        self._main_roots.append(root_data)
+        self._current_root_id = self._next_root_id
+        self._next_root_id += 1
+
+        return root_data
 
 
 class MeasurementCalculator:

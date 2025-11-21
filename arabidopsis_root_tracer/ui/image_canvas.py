@@ -3,9 +3,9 @@ Image canvas widget for displaying and interacting with root images.
 """
 
 import numpy as np
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Callable
 from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
-from PySide6.QtCore import Qt, Signal, QPointF
+from PySide6.QtCore import Qt, Signal, QPointF, QTimer
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 
 
@@ -17,13 +17,17 @@ class ImageCanvas(QGraphicsView):
 
     # Signals
     point_clicked = Signal(int, int)  # x, y coordinates for setting start point
-    lateral_clicked = Signal(int, int, int, int)  # root_id, lateral_id, x, y
     delete_requested = Signal(int, int)  # x, y for delete mode
     manual_lateral_point = Signal(int, int)  # x, y for manual lateral mode
     zoom_changed = Signal(float)  # zoom level
+    # Live trace signals
+    live_trace_started = Signal(int, int)  # x, y start point
+    live_trace_moved = Signal(int, int)  # x, y current position
+    live_trace_finished = Signal(int, int)  # x, y end point
 
     # Interaction modes
-    MODE_SELECT = "select"  # Click to set start point
+    MODE_SELECT = "select"  # Click to set start point (old method)
+    MODE_LIVE_TRACE = "live_trace"  # Click and drag to trace
     MODE_DELETE = "delete"  # Click to delete lateral
     MODE_MANUAL_LATERAL = "manual_lateral"  # Click start then end of lateral
     MODE_PAN = "pan"  # Pan mode
@@ -41,16 +45,20 @@ class ImageCanvas(QGraphicsView):
         self._max_zoom: float = 10.0
 
         # Interaction mode
-        self._mode = self.MODE_SELECT
+        self._mode = self.MODE_LIVE_TRACE
 
-        # Tracing data to display - now supports multiple roots
-        self._roots: List[Dict] = []  # List of {id, points, laterals, color}
+        # Tracing data to display - supports multiple roots
+        self._roots: List[Dict] = []
         self._start_point: Optional[Tuple[int, int]] = None
         self._manual_lateral_start: Optional[Tuple[int, int]] = None
 
+        # Live trace state
+        self._live_trace_active = False
+        self._live_trace_start: Optional[Tuple[int, int]] = None
+        self._live_trace_preview: List[Tuple[int, int]] = []
+
         # Highlight for selected/hovered items
-        self._highlighted_lateral: Optional[Tuple[int, int]] = None  # (root_id, lateral_id)
-        self._current_root_id: int = 0
+        self._highlighted_lateral: Optional[Tuple[int, int]] = None
 
         # Colors for different roots
         self._root_colors = [
@@ -62,8 +70,9 @@ class ImageCanvas(QGraphicsView):
             (200, 100, 255), # Purple
         ]
         self._lateral_color = (255, 165, 0)  # Orange
-        self._lateral_highlight_color = (255, 0, 0)  # Red for highlighted
+        self._lateral_highlight_color = (255, 0, 0)  # Red
         self._start_point_color = (255, 0, 0)  # Red
+        self._preview_color = (100, 255, 100)  # Light green for preview
         self._manual_point_color = (0, 100, 255)  # Blue
 
         # Setup
@@ -74,14 +83,14 @@ class ImageCanvas(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setBackgroundBrush(QBrush(QColor(50, 50, 50)))
-
-        # Enable mouse tracking for hover effects
         self.setMouseTracking(True)
 
     def set_mode(self, mode: str):
         """Set the interaction mode."""
         self._mode = mode
         self._manual_lateral_start = None
+        self._live_trace_active = False
+        self._live_trace_preview = []
 
         if mode == self.MODE_PAN:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -89,15 +98,13 @@ class ImageCanvas(QGraphicsView):
         elif mode == self.MODE_DELETE:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.CrossCursor)
-        elif mode == self.MODE_MANUAL_LATERAL:
-            self.setDragMode(QGraphicsView.DragMode.NoDrag)
-            self.setCursor(Qt.CursorShape.CrossCursor)
         else:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.CrossCursor)
 
+        self._update_display()
+
     def get_mode(self) -> str:
-        """Get current interaction mode."""
         return self._mode
 
     def set_image(self, image: np.ndarray):
@@ -110,23 +117,19 @@ class ImageCanvas(QGraphicsView):
         if self._image is None:
             return
 
-        # Create QImage from numpy array
         img = self._image
         if img.dtype != np.uint8:
             img = ((img - img.min()) / (img.max() - img.min() + 1e-10) * 255).astype(np.uint8)
 
         height, width = img.shape[:2]
 
-        # Convert grayscale to RGB for colored overlays
         if len(img.shape) == 2:
             rgb_img = np.stack([img, img, img], axis=2)
         else:
             rgb_img = img.copy()
 
-        # Draw tracings on the image
         rgb_img = self._draw_tracings(rgb_img)
 
-        # Create QImage
         bytes_per_line = 3 * width
         q_image = QImage(
             rgb_img.data,
@@ -136,9 +139,7 @@ class ImageCanvas(QGraphicsView):
             QImage.Format.Format_RGB888
         )
 
-        # Create pixmap and add to scene
         pixmap = QPixmap.fromImage(q_image)
-
         self._scene.clear()
         self._pixmap_item = self._scene.addPixmap(pixmap)
         self._scene.setSceneRect(0, 0, width, height)
@@ -153,7 +154,6 @@ class ImageCanvas(QGraphicsView):
             color_idx = i % len(self._root_colors)
             root_color = self._root_colors[color_idx]
 
-            # Draw main root
             points = root.get('points', [])
             if len(points) > 1:
                 for j in range(len(points) - 1):
@@ -161,16 +161,13 @@ class ImageCanvas(QGraphicsView):
                     x2, y2 = points[j + 1]
                     self._draw_line(result, x1, y1, x2, y2, root_color)
 
-            # Draw laterals
             laterals = root.get('laterals', [])
             for lat in laterals:
                 lat_id = lat.get('id', 0)
                 lat_points = lat.get('points', [])
 
-                # Check if highlighted
                 is_highlighted = (self._highlighted_lateral is not None and
                                  self._highlighted_lateral == (root_id, lat_id))
-
                 color = self._lateral_highlight_color if is_highlighted else self._lateral_color
 
                 if len(lat_points) > 1:
@@ -179,10 +176,22 @@ class ImageCanvas(QGraphicsView):
                         x2, y2 = lat_points[j + 1]
                         self._draw_line(result, x1, y1, x2, y2, color)
 
+        # Draw live trace preview
+        if self._live_trace_preview and len(self._live_trace_preview) > 1:
+            for j in range(len(self._live_trace_preview) - 1):
+                x1, y1 = self._live_trace_preview[j]
+                x2, y2 = self._live_trace_preview[j + 1]
+                self._draw_line(result, x1, y1, x2, y2, self._preview_color)
+
         # Draw start point
         if self._start_point is not None:
             x, y = self._start_point
             self._draw_circle(result, x, y, 5, self._start_point_color)
+
+        # Draw live trace start
+        if self._live_trace_start is not None:
+            x, y = self._live_trace_start
+            self._draw_circle(result, x, y, 6, self._preview_color)
 
         # Draw manual lateral start point
         if self._manual_lateral_start is not None:
@@ -193,9 +202,8 @@ class ImageCanvas(QGraphicsView):
 
     def _draw_line(self, img: np.ndarray, x1: int, y1: int, x2: int, y2: int,
                    color: Tuple[int, int, int]):
-        """Draw a line on the image using Bresenham's algorithm."""
+        """Draw a line using Bresenham's algorithm."""
         height, width = img.shape[:2]
-
         dx = abs(x2 - x1)
         dy = abs(y2 - y1)
         sx = 1 if x1 < x2 else -1
@@ -204,7 +212,6 @@ class ImageCanvas(QGraphicsView):
 
         x, y = x1, y1
         while True:
-            # Draw thick line
             for ox in range(-1, 2):
                 for oy in range(-1, 2):
                     px, py = x + ox, y + oy
@@ -224,7 +231,7 @@ class ImageCanvas(QGraphicsView):
 
     def _draw_circle(self, img: np.ndarray, cx: int, cy: int, radius: int,
                      color: Tuple[int, int, int]):
-        """Draw a filled circle on the image."""
+        """Draw a filled circle."""
         height, width = img.shape[:2]
         for y in range(cy - radius, cy + radius + 1):
             for x in range(cx - radius, cx + radius + 1):
@@ -237,27 +244,25 @@ class ImageCanvas(QGraphicsView):
         self._roots = roots
         self._update_display()
 
+    def set_live_trace_preview(self, points: List[Tuple[int, int]]):
+        """Set the live trace preview points."""
+        self._live_trace_preview = points
+        self._update_display()
+
     def set_start_point(self, point: Optional[Tuple[int, int]]):
-        """Set the start point marker."""
         self._start_point = point
         self._update_display()
 
     def set_manual_lateral_start(self, point: Optional[Tuple[int, int]]):
-        """Set the manual lateral start point."""
         self._manual_lateral_start = point
         self._update_display()
 
     def set_highlighted_lateral(self, root_id: Optional[int], lateral_id: Optional[int]):
-        """Set a lateral to highlight (for deletion preview)."""
         if root_id is not None and lateral_id is not None:
             self._highlighted_lateral = (root_id, lateral_id)
         else:
             self._highlighted_lateral = None
         self._update_display()
-
-    def set_current_root_id(self, root_id: int):
-        """Set the current root ID (for reference)."""
-        self._current_root_id = root_id
 
     def clear_tracings(self):
         """Clear all tracing overlays."""
@@ -265,21 +270,21 @@ class ImageCanvas(QGraphicsView):
         self._start_point = None
         self._manual_lateral_start = None
         self._highlighted_lateral = None
+        self._live_trace_preview = []
+        self._live_trace_start = None
+        self._live_trace_active = False
         self._update_display()
 
     def wheelEvent(self, event):
         """Handle mouse wheel for zooming."""
-        # Zoom factor
         factor = 1.15
 
         if event.angleDelta().y() > 0:
-            # Zoom in
             new_zoom = self._zoom_level * factor
             if new_zoom <= self._max_zoom:
                 self._zoom_level = new_zoom
                 self.scale(factor, factor)
         else:
-            # Zoom out
             new_zoom = self._zoom_level / factor
             if new_zoom >= self._min_zoom:
                 self._zoom_level = new_zoom
@@ -288,7 +293,7 @@ class ImageCanvas(QGraphicsView):
         self.zoom_changed.emit(self._zoom_level)
 
     def mousePressEvent(self, event):
-        """Handle mouse press for point selection."""
+        """Handle mouse press."""
         if event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             x, y = int(scene_pos.x()), int(scene_pos.y())
@@ -296,15 +301,22 @@ class ImageCanvas(QGraphicsView):
             if self._image is not None:
                 height, width = self._image.shape[:2]
                 if 0 <= x < width and 0 <= y < height:
-                    if self._mode == self.MODE_SELECT:
+                    if self._mode == self.MODE_LIVE_TRACE:
+                        # Start live trace
+                        self._live_trace_active = True
+                        self._live_trace_start = (x, y)
+                        self.live_trace_started.emit(x, y)
+                        return
+                    elif self._mode == self.MODE_SELECT:
                         self.point_clicked.emit(x, y)
+                        return
                     elif self._mode == self.MODE_DELETE:
                         self.delete_requested.emit(x, y)
+                        return
                     elif self._mode == self.MODE_MANUAL_LATERAL:
                         self.manual_lateral_point.emit(x, y)
-                    return
+                        return
 
-        # For middle button, enable pan
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
 
@@ -312,6 +324,15 @@ class ImageCanvas(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._mode == self.MODE_LIVE_TRACE and self._live_trace_active:
+                scene_pos = self.mapToScene(event.pos())
+                x, y = int(scene_pos.x()), int(scene_pos.y())
+                self._live_trace_active = False
+                self.live_trace_finished.emit(x, y)
+                self._live_trace_start = None
+                return
+
         if event.button() == Qt.MouseButton.MiddleButton:
             if self._mode != self.MODE_PAN:
                 self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -319,12 +340,15 @@ class ImageCanvas(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
-        """Handle mouse move for hover highlighting."""
-        if self._mode == self.MODE_DELETE and self._image is not None:
-            scene_pos = self.mapToScene(event.pos())
-            x, y = int(scene_pos.x()), int(scene_pos.y())
+        """Handle mouse move."""
+        scene_pos = self.mapToScene(event.pos())
+        x, y = int(scene_pos.x()), int(scene_pos.y())
 
-            # Check if hovering over a lateral
+        if self._mode == self.MODE_LIVE_TRACE and self._live_trace_active:
+            # Emit signal for live preview update
+            self.live_trace_moved.emit(x, y)
+
+        elif self._mode == self.MODE_DELETE and self._image is not None:
             found = self._find_lateral_near(x, y)
             if found != self._highlighted_lateral:
                 self._highlighted_lateral = found
@@ -344,7 +368,6 @@ class ImageCanvas(QGraphicsView):
         return None
 
     def fit_to_view(self):
-        """Fit the image to the view."""
         if self._pixmap_item is not None:
             self.fitInView(self._pixmap_item, Qt.AspectRatioMode.KeepAspectRatio)
             transform = self.transform()
@@ -352,11 +375,9 @@ class ImageCanvas(QGraphicsView):
             self.zoom_changed.emit(self._zoom_level)
 
     def reset_zoom(self):
-        """Reset zoom to 100%."""
         self.resetTransform()
         self._zoom_level = 1.0
         self.zoom_changed.emit(self._zoom_level)
 
     def get_zoom_level(self) -> float:
-        """Get current zoom level."""
         return self._zoom_level
