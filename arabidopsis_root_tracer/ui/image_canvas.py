@@ -16,18 +16,15 @@ class ImageCanvas(QGraphicsView):
     """
 
     # Signals
-    point_clicked = Signal(int, int)  # x, y coordinates for setting start point
+    point_clicked = Signal(int, int)  # x, y coordinates for setting start point (MODE_SELECT)
+    start_end_point = Signal(int, int)  # x, y for start_end mode
     delete_requested = Signal(int, int)  # x, y for delete mode
     manual_lateral_point = Signal(int, int)  # x, y for manual lateral mode
     zoom_changed = Signal(float)  # zoom level
-    # Live trace signals
-    live_trace_started = Signal(int, int)  # x, y start point
-    live_trace_moved = Signal(int, int)  # x, y current position
-    live_trace_finished = Signal(int, int)  # x, y end point
 
     # Interaction modes
-    MODE_SELECT = "select"  # Click to set start point (old method)
-    MODE_LIVE_TRACE = "live_trace"  # Click and drag to trace
+    MODE_SELECT = "select"  # Click to set start point, then press T to trace (old method)
+    MODE_START_END = "start_end"  # Click start, then click end of root
     MODE_DELETE = "delete"  # Click to delete lateral
     MODE_MANUAL_LATERAL = "manual_lateral"  # Click start then end of lateral
     MODE_PAN = "pan"  # Pan mode
@@ -45,17 +42,13 @@ class ImageCanvas(QGraphicsView):
         self._max_zoom: float = 10.0
 
         # Interaction mode
-        self._mode = self.MODE_LIVE_TRACE
+        self._mode = self.MODE_SELECT
 
         # Tracing data to display - supports multiple roots
         self._roots: List[Dict] = []
         self._start_point: Optional[Tuple[int, int]] = None
         self._manual_lateral_start: Optional[Tuple[int, int]] = None
-
-        # Live trace state
-        self._live_trace_active = False
-        self._live_trace_start: Optional[Tuple[int, int]] = None
-        self._live_trace_preview: List[Tuple[int, int]] = []
+        self._start_end_first: Optional[Tuple[int, int]] = None  # First point for start_end mode
 
         # Highlight for selected/hovered items
         self._highlighted_lateral: Optional[Tuple[int, int]] = None
@@ -72,8 +65,8 @@ class ImageCanvas(QGraphicsView):
         self._lateral_color = (255, 165, 0)  # Orange
         self._lateral_highlight_color = (255, 0, 0)  # Red
         self._start_point_color = (255, 0, 0)  # Red
-        self._preview_color = (100, 255, 100)  # Light green for preview
         self._manual_point_color = (0, 100, 255)  # Blue
+        self._start_end_color = (0, 255, 255)  # Cyan for start_end first point
 
         # Setup
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -89,8 +82,7 @@ class ImageCanvas(QGraphicsView):
         """Set the interaction mode."""
         self._mode = mode
         self._manual_lateral_start = None
-        self._live_trace_active = False
-        self._live_trace_preview = []
+        self._start_end_first = None
 
         if mode == self.MODE_PAN:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -176,22 +168,15 @@ class ImageCanvas(QGraphicsView):
                         x2, y2 = lat_points[j + 1]
                         self._draw_line(result, x1, y1, x2, y2, color)
 
-        # Draw live trace preview
-        if self._live_trace_preview and len(self._live_trace_preview) > 1:
-            for j in range(len(self._live_trace_preview) - 1):
-                x1, y1 = self._live_trace_preview[j]
-                x2, y2 = self._live_trace_preview[j + 1]
-                self._draw_line(result, x1, y1, x2, y2, self._preview_color)
-
-        # Draw start point
+        # Draw start point (for MODE_SELECT)
         if self._start_point is not None:
             x, y = self._start_point
             self._draw_circle(result, x, y, 5, self._start_point_color)
 
-        # Draw live trace start
-        if self._live_trace_start is not None:
-            x, y = self._live_trace_start
-            self._draw_circle(result, x, y, 6, self._preview_color)
+        # Draw start_end first point
+        if self._start_end_first is not None:
+            x, y = self._start_end_first
+            self._draw_circle(result, x, y, 6, self._start_end_color)
 
         # Draw manual lateral start point
         if self._manual_lateral_start is not None:
@@ -244,13 +229,14 @@ class ImageCanvas(QGraphicsView):
         self._roots = roots
         self._update_display()
 
-    def set_live_trace_preview(self, points: List[Tuple[int, int]]):
-        """Set the live trace preview points."""
-        self._live_trace_preview = points
+    def set_start_point(self, point: Optional[Tuple[int, int]]):
+        """Set start point for MODE_SELECT."""
+        self._start_point = point
         self._update_display()
 
-    def set_start_point(self, point: Optional[Tuple[int, int]]):
-        self._start_point = point
+    def set_start_end_first(self, point: Optional[Tuple[int, int]]):
+        """Set first point for MODE_START_END."""
+        self._start_end_first = point
         self._update_display()
 
     def set_manual_lateral_start(self, point: Optional[Tuple[int, int]]):
@@ -270,9 +256,7 @@ class ImageCanvas(QGraphicsView):
         self._start_point = None
         self._manual_lateral_start = None
         self._highlighted_lateral = None
-        self._live_trace_preview = []
-        self._live_trace_start = None
-        self._live_trace_active = False
+        self._start_end_first = None
         self._update_display()
 
     def wheelEvent(self, event):
@@ -301,14 +285,13 @@ class ImageCanvas(QGraphicsView):
             if self._image is not None:
                 height, width = self._image.shape[:2]
                 if 0 <= x < width and 0 <= y < height:
-                    if self._mode == self.MODE_LIVE_TRACE:
-                        # Start live trace
-                        self._live_trace_active = True
-                        self._live_trace_start = (x, y)
-                        self.live_trace_started.emit(x, y)
-                        return
-                    elif self._mode == self.MODE_SELECT:
+                    if self._mode == self.MODE_SELECT:
+                        # Old method: click to set start point
                         self.point_clicked.emit(x, y)
+                        return
+                    elif self._mode == self.MODE_START_END:
+                        # New method: click start, then click end
+                        self.start_end_point.emit(x, y)
                         return
                     elif self._mode == self.MODE_DELETE:
                         self.delete_requested.emit(x, y)
@@ -324,15 +307,6 @@ class ImageCanvas(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self._mode == self.MODE_LIVE_TRACE and self._live_trace_active:
-                scene_pos = self.mapToScene(event.pos())
-                x, y = int(scene_pos.x()), int(scene_pos.y())
-                self._live_trace_active = False
-                self.live_trace_finished.emit(x, y)
-                self._live_trace_start = None
-                return
-
         if event.button() == Qt.MouseButton.MiddleButton:
             if self._mode != self.MODE_PAN:
                 self.setDragMode(QGraphicsView.DragMode.NoDrag)
@@ -344,11 +318,7 @@ class ImageCanvas(QGraphicsView):
         scene_pos = self.mapToScene(event.pos())
         x, y = int(scene_pos.x()), int(scene_pos.y())
 
-        if self._mode == self.MODE_LIVE_TRACE and self._live_trace_active:
-            # Emit signal for live preview update
-            self.live_trace_moved.emit(x, y)
-
-        elif self._mode == self.MODE_DELETE and self._image is not None:
+        if self._mode == self.MODE_DELETE and self._image is not None:
             found = self._find_lateral_near(x, y)
             if found != self._highlighted_lateral:
                 self._highlighted_lateral = found

@@ -620,6 +620,33 @@ class RootTracer:
             self._current_root_id = 0
             self._next_root_id = 1
 
+    def trace_between_points(self, start_point: Tuple[int, int],
+                              end_point: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Trace a root path between two user-specified points.
+        Uses A* pathfinding along the skeleton.
+
+        Args:
+            start_point: (x, y) starting point
+            end_point: (x, y) ending point
+
+        Returns:
+            List of (x, y) points along the traced path
+        """
+        if self._skeleton is None:
+            return []
+
+        # Find nearest skeleton points
+        start = self._find_nearest_skeleton_point(start_point[0], start_point[1], max_distance=50)
+        end = self._find_nearest_skeleton_point(end_point[0], end_point[1], max_distance=50)
+
+        if start is None or end is None:
+            return []
+
+        # Use A* to find path
+        path = self._astar_trace(start, end)
+        return path
+
     def get_live_trace_preview(self, start_point: Tuple[int, int],
                                 end_point: Tuple[int, int]) -> List[Tuple[int, int]]:
         """

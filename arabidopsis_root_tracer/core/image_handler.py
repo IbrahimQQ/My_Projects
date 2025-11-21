@@ -60,6 +60,16 @@ class ImageHandler:
         return self._stack is not None
 
     @property
+    def file_name(self) -> str:
+        """Get the loaded file name (without path and extension)."""
+        if self._file_path is None:
+            return ""
+        import os
+        base = os.path.basename(self._file_path)
+        name, _ = os.path.splitext(base)
+        return name
+
+    @property
     def num_slices(self) -> int:
         """Get number of slices in the stack."""
         if self._stack is None:

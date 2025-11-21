@@ -14,20 +14,18 @@ class CSVExporter:
     def export_measurements(
         file_path: str,
         slice_data: List[Dict],
-        pixel_size: float = 1.0,
-        unit: str = "pixels"
+        pixels_per_unit: float = 1.0,
+        unit: str = "cm"
     ) -> bool:
         """
-        Export all measurements to a CSV file.
+        Export measurements in the new format:
+        Slice Name, Root#, Root Length, Total Lateral Count, Total Lateral Length,
+        Lateral Density, Lateral Length per Unit Root
 
         Args:
             file_path: Output CSV file path
-            slice_data: List of dictionaries containing:
-                - slice_name: Name of the slice
-                - main_root_length: Length of main root
-                - main_root_points: List of (x, y) points
-                - lateral_roots: List of lateral root data
-            pixel_size: Size of one pixel in real units
+            slice_data: List of dictionaries containing per-root data
+            pixels_per_unit: Pixels per unit (e.g., 161 px/cm)
             unit: Unit name for measurements
 
         Returns:
@@ -37,64 +35,49 @@ class CSVExporter:
             with open(file_path, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
 
-                # Header
+                # New header format
                 writer.writerow([
                     'Slice Name',
-                    'Root Type',
-                    'Root ID',
-                    f'Length ({unit})',
-                    'Branch Position ({})'.format(unit),
-                    'Branch Angle (degrees)',
-                    'Start X',
-                    'Start Y',
-                    'End X',
-                    'End Y',
-                    'Number of Points'
+                    'Root #',
+                    f'Root Length ({unit})',
+                    'Lateral Count',
+                    f'Total Lateral Length ({unit})',
+                    f'Lateral Density (count/{unit})',
+                    f'Lateral Length per {unit} Root'
                 ])
 
                 for slice_info in slice_data:
                     slice_name = slice_info.get('slice_name', 'Unknown')
-                    main_points = slice_info.get('main_root_points', [])
-                    main_length = slice_info.get('main_root_length', 0)
+                    root_length = slice_info.get('main_root_length', 0)
                     laterals = slice_info.get('lateral_roots', [])
 
-                    # Main root row
-                    if main_points:
-                        writer.writerow([
-                            slice_name,
-                            'Main Root',
-                            1,
-                            f'{main_length * pixel_size:.2f}',
-                            '-',
-                            '-',
-                            main_points[0][0],
-                            main_points[0][1],
-                            main_points[-1][0],
-                            main_points[-1][1],
-                            len(main_points)
-                        ])
+                    lat_count = len(laterals)
+                    total_lat_length = sum(l.get('length', 0) for l in laterals)
 
-                    # Lateral roots
-                    for i, lateral in enumerate(laterals):
-                        points = lateral.get('points', [])
-                        length = lateral.get('length', 0)
-                        branch_pos = lateral.get('branch_position', 0)
-                        angle = lateral.get('angle', 0)
+                    # Lateral density = count / root length
+                    lat_density = lat_count / root_length if root_length > 0 else 0
 
-                        if points:
-                            writer.writerow([
-                                slice_name,
-                                'Lateral Root',
-                                i + 1,
-                                f'{length * pixel_size:.2f}',
-                                f'{branch_pos * pixel_size:.2f}',
-                                f'{angle:.1f}',
-                                points[0][0],
-                                points[0][1],
-                                points[-1][0],
-                                points[-1][1],
-                                len(points)
-                            ])
+                    # Lateral length per unit root = total lat length / root length
+                    lat_per_unit = total_lat_length / root_length if root_length > 0 else 0
+
+                    # Extract root number from slice_name (format: "SliceName_Root1")
+                    root_num = 1
+                    if '_Root' in slice_name:
+                        try:
+                            root_num = int(slice_name.split('_Root')[-1])
+                            slice_name = slice_name.rsplit('_Root', 1)[0]
+                        except ValueError:
+                            pass
+
+                    writer.writerow([
+                        slice_name,
+                        root_num,
+                        f'{root_length:.3f}',
+                        lat_count,
+                        f'{total_lat_length:.3f}',
+                        f'{lat_density:.3f}',
+                        f'{lat_per_unit:.3f}'
+                    ])
 
             return True
 
@@ -106,7 +89,7 @@ class CSVExporter:
     def export_points(
         file_path: str,
         slice_data: List[Dict],
-        pixel_size: float = 1.0
+        pixels_per_unit: float = 1.0
     ) -> bool:
         """
         Export all traced points to a CSV file.
@@ -114,7 +97,7 @@ class CSVExporter:
         Args:
             file_path: Output CSV file path
             slice_data: List of slice data dictionaries
-            pixel_size: Size of one pixel in real units
+            pixels_per_unit: Pixels per unit (divide to get real units)
 
         Returns:
             True if export successful
@@ -129,10 +112,10 @@ class CSVExporter:
                     'Root Type',
                     'Root ID',
                     'Point Index',
-                    'X',
-                    'Y',
-                    'X (scaled)',
-                    'Y (scaled)'
+                    'X (px)',
+                    'Y (px)',
+                    'X (units)',
+                    'Y (units)'
                 ])
 
                 for slice_info in slice_data:
@@ -149,8 +132,8 @@ class CSVExporter:
                             idx,
                             x,
                             y,
-                            f'{x * pixel_size:.2f}',
-                            f'{y * pixel_size:.2f}'
+                            f'{x / pixels_per_unit:.3f}',
+                            f'{y / pixels_per_unit:.3f}'
                         ])
 
                     # Lateral root points
@@ -164,8 +147,8 @@ class CSVExporter:
                                 idx,
                                 x,
                                 y,
-                                f'{x * pixel_size:.2f}',
-                                f'{y * pixel_size:.2f}'
+                                f'{x / pixels_per_unit:.3f}',
+                                f'{y / pixels_per_unit:.3f}'
                             ])
 
             return True

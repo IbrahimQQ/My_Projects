@@ -37,11 +37,9 @@ class MainWindow(QMainWindow):
 
         # State - slice data stored separately from tracer
         self._slice_data: Dict[int, List[Dict]] = {}
-        self._live_trace_start: Optional[tuple] = None
+        self._start_point: Optional[tuple] = None  # For MODE_SELECT
+        self._start_end_first: Optional[tuple] = None  # For MODE_START_END
         self._manual_lateral_start: Optional[tuple] = None
-
-        # Throttle live trace updates
-        self._last_preview_update = 0
 
         # Setup UI
         self._setup_ui()
@@ -111,13 +109,15 @@ class MainWindow(QMainWindow):
         mode_group = QGroupBox("Mode")
         mode_layout = QVBoxLayout(mode_group)
 
-        self._radio_live_trace = QRadioButton("Live Trace (T) - Click & drag to trace root")
+        self._radio_select = QRadioButton("Click Start (S) - Click start, then T to trace")
+        self._radio_start_end = QRadioButton("Start+End (E) - Click start, then click end")
         self._radio_delete = QRadioButton("Delete (X) - Click lateral to delete")
         self._radio_manual = QRadioButton("Manual Lateral (M) - Click start, then end")
         self._radio_pan = QRadioButton("Pan (P) - Drag to pan")
 
-        self._radio_live_trace.setChecked(True)
-        mode_layout.addWidget(self._radio_live_trace)
+        self._radio_select.setChecked(True)
+        mode_layout.addWidget(self._radio_select)
+        mode_layout.addWidget(self._radio_start_end)
         mode_layout.addWidget(self._radio_delete)
         mode_layout.addWidget(self._radio_manual)
         mode_layout.addWidget(self._radio_pan)
@@ -198,8 +198,8 @@ class MainWindow(QMainWindow):
 
         # Shortcuts help
         help_label = QLabel(
-            "<small><b>Keys:</b> T=Trace, L=Laterals, X=Delete, M=Manual, "
-            "P=Pan, A/D=Slice, F=Fit, Esc=Cancel</small>"
+            "<small><b>Keys:</b> S=Click Start, E=Start+End, T=Trace from start, "
+            "L=Laterals, X=Delete, M=Manual, P=Pan, A/D=Slice, F=Fit, Esc=Cancel</small>"
         )
         help_label.setWordWrap(True)
         right_layout.addWidget(help_label)
@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
 
         toolbar.addSeparator()
         toolbar.addWidget(QLabel("Mode: "))
-        self._lbl_mode = QLabel("Live Trace")
+        self._lbl_mode = QLabel("Click Start")
         self._lbl_mode.setStyleSheet("font-weight: bold; color: green;")
         toolbar.addWidget(self._lbl_mode)
 
@@ -271,7 +271,9 @@ class MainWindow(QMainWindow):
 
     def _setup_shortcuts(self):
         QShortcut(QKeySequence("O"), self, self._on_open_file)
-        QShortcut(QKeySequence("T"), self, lambda: self._set_mode("live_trace"))
+        QShortcut(QKeySequence("S"), self, lambda: self._set_mode("select"))
+        QShortcut(QKeySequence("E"), self, lambda: self._set_mode("start_end"))
+        QShortcut(QKeySequence("T"), self, self._on_trace_from_start)  # Trace from clicked start
         QShortcut(QKeySequence("X"), self, lambda: self._set_mode("delete"))
         QShortcut(QKeySequence("M"), self, lambda: self._set_mode("manual"))
         QShortcut(QKeySequence("P"), self, lambda: self._set_mode("pan"))
@@ -286,16 +288,14 @@ class MainWindow(QMainWindow):
     def _connect_signals(self):
         # Canvas signals
         self._canvas.zoom_changed.connect(self._on_zoom_changed)
+        self._canvas.point_clicked.connect(self._on_point_clicked)
+        self._canvas.start_end_point.connect(self._on_start_end_point)
         self._canvas.delete_requested.connect(self._on_delete_requested)
         self._canvas.manual_lateral_point.connect(self._on_manual_lateral_point)
 
-        # Live trace signals
-        self._canvas.live_trace_started.connect(self._on_live_trace_started)
-        self._canvas.live_trace_moved.connect(self._on_live_trace_moved)
-        self._canvas.live_trace_finished.connect(self._on_live_trace_finished)
-
         # Mode radio buttons
-        self._radio_live_trace.toggled.connect(lambda c: c and self._set_mode("live_trace"))
+        self._radio_select.toggled.connect(lambda c: c and self._set_mode("select"))
+        self._radio_start_end.toggled.connect(lambda c: c and self._set_mode("start_end"))
         self._radio_delete.toggled.connect(lambda c: c and self._set_mode("delete"))
         self._radio_manual.toggled.connect(lambda c: c and self._set_mode("manual"))
         self._radio_pan.toggled.connect(lambda c: c and self._set_mode("pan"))
@@ -329,7 +329,8 @@ class MainWindow(QMainWindow):
 
     def _set_mode(self, mode: str):
         mode_map = {
-            "live_trace": (ImageCanvas.MODE_LIVE_TRACE, self._radio_live_trace, "Live Trace"),
+            "select": (ImageCanvas.MODE_SELECT, self._radio_select, "Click Start"),
+            "start_end": (ImageCanvas.MODE_START_END, self._radio_start_end, "Start+End"),
             "delete": (ImageCanvas.MODE_DELETE, self._radio_delete, "Delete"),
             "manual": (ImageCanvas.MODE_MANUAL_LATERAL, self._radio_manual, "Manual"),
             "pan": (ImageCanvas.MODE_PAN, self._radio_pan, "Pan"),
@@ -341,10 +342,13 @@ class MainWindow(QMainWindow):
             radio.setChecked(True)
             self._lbl_mode.setText(label)
             self._manual_lateral_start = None
+            self._start_end_first = None
             self._canvas.set_manual_lateral_start(None)
+            self._canvas.set_start_end_first(None)
 
             messages = {
-                "live_trace": "Click and drag along the root to trace",
+                "select": "Click on root start, then press T to trace",
+                "start_end": "Click start of root, then click end of root",
                 "delete": "Click on a lateral to delete it",
                 "manual": "Click start near main root, then click end",
                 "pan": "Drag to pan the view",
@@ -479,12 +483,13 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_escape(self):
-        self._live_trace_start = None
+        self._start_point = None
+        self._start_end_first = None
         self._manual_lateral_start = None
         self._canvas.set_start_point(None)
+        self._canvas.set_start_end_first(None)
         self._canvas.set_manual_lateral_start(None)
-        self._canvas.set_live_trace_preview([])
-        self._set_mode("live_trace")
+        self._set_mode("select")
         self._statusbar.showMessage("Cancelled")
         self._update_ui_state()
 
@@ -533,46 +538,62 @@ class MainWindow(QMainWindow):
             self._update_root_list()
 
     @Slot(int, int)
-    def _on_live_trace_started(self, x: int, y: int):
-        """Start live trace."""
-        self._live_trace_start = (x, y)
-        self._statusbar.showMessage(f"Tracing from ({x}, {y})... drag to root end")
+    def _on_point_clicked(self, x: int, y: int):
+        """Handle click in MODE_SELECT - sets start point for tracing."""
+        self._start_point = (x, y)
+        self._canvas.set_start_point((x, y))
+        self._statusbar.showMessage(f"Start point set at ({x}, {y}) - Press T to trace")
 
-    @Slot(int, int)
-    def _on_live_trace_moved(self, x: int, y: int):
-        """Update live trace preview."""
-        if self._live_trace_start is None:
+    @Slot()
+    def _on_trace_from_start(self):
+        """Trace main root from the clicked start point (T shortcut)."""
+        if self._start_point is None:
+            self._statusbar.showMessage("Click on root start first (S mode), then press T")
             return
 
-        # Get preview from tracer
-        preview = self._root_tracer.get_live_trace_preview(self._live_trace_start, (x, y))
-        self._canvas.set_live_trace_preview(preview)
-
-    @Slot(int, int)
-    def _on_live_trace_finished(self, x: int, y: int):
-        """Finish live trace and add root."""
-        if self._live_trace_start is None:
-            return
-
-        # Get final trace
-        points = self._root_tracer.get_live_trace_preview(self._live_trace_start, (x, y))
-
-        if len(points) > 10:  # Minimum length
-            result = self._root_tracer.add_root_from_points(points)
-            if result:
-                self._update_canvas_display()
-                self._update_root_list()
-                self._statusbar.showMessage(
-                    f"Traced root {result['id']} ({len(points)} pts) - Press L for laterals"
-                )
-            else:
-                self._statusbar.showMessage("Trace too short")
+        result = self._root_tracer.trace_main_root(self._start_point)
+        if result and result.get('points'):
+            self._update_canvas_display()
+            self._update_root_list()
+            self._update_measurements_table()
+            self._statusbar.showMessage(
+                f"Traced root {result['id']} ({len(result['points'])} pts) - Press L for laterals"
+            )
         else:
-            self._statusbar.showMessage("Trace too short - try dragging further")
+            self._statusbar.showMessage("No root found from start point")
 
-        self._live_trace_start = None
-        self._canvas.set_live_trace_preview([])
+        self._start_point = None
+        self._canvas.set_start_point(None)
         self._update_ui_state()
+
+    @Slot(int, int)
+    def _on_start_end_point(self, x: int, y: int):
+        """Handle click in MODE_START_END - first click sets start, second traces to end."""
+        if self._start_end_first is None:
+            # First click - set start point
+            self._start_end_first = (x, y)
+            self._canvas.set_start_end_first((x, y))
+            self._statusbar.showMessage(f"Start set at ({x}, {y}) - Click on root end")
+        else:
+            # Second click - trace from start to end
+            points = self._root_tracer.trace_between_points(self._start_end_first, (x, y))
+            if points and len(points) > 5:
+                result = self._root_tracer.add_root_from_points(points)
+                if result:
+                    self._update_canvas_display()
+                    self._update_root_list()
+                    self._update_measurements_table()
+                    self._statusbar.showMessage(
+                        f"Traced root {result['id']} ({len(points)} pts) - Press L for laterals"
+                    )
+                else:
+                    self._statusbar.showMessage("Failed to add root")
+            else:
+                self._statusbar.showMessage("No path found between points")
+
+            self._start_end_first = None
+            self._canvas.set_start_end_first(None)
+            self._update_ui_state()
 
     @Slot(int, int)
     def _on_delete_requested(self, x: int, y: int):
@@ -624,15 +645,27 @@ class MainWindow(QMainWindow):
     def _on_prev_slice(self):
         if self._image_handler.current_slice > 0:
             self._save_current_slice_data()
-            self._image_handler.current_slice -= 1
-            self._slice_slider.setValue(self._image_handler.current_slice)
+            new_slice = self._image_handler.current_slice - 1
+            self._slice_slider.blockSignals(True)
+            self._slice_slider.setValue(new_slice)
+            self._slice_slider.blockSignals(False)
+            self._image_handler.current_slice = new_slice
+            self._display_current_slice()
+            self._update_ui_state()
+            self._update_measurements_table()
 
     @Slot()
     def _on_next_slice(self):
         if self._image_handler.current_slice < self._image_handler.num_slices - 1:
             self._save_current_slice_data()
-            self._image_handler.current_slice += 1
-            self._slice_slider.setValue(self._image_handler.current_slice)
+            new_slice = self._image_handler.current_slice + 1
+            self._slice_slider.blockSignals(True)
+            self._slice_slider.setValue(new_slice)
+            self._slice_slider.blockSignals(False)
+            self._image_handler.current_slice = new_slice
+            self._display_current_slice()
+            self._update_ui_state()
+            self._update_measurements_table()
 
     @Slot(int)
     def _on_slice_changed(self, value: int):
@@ -641,6 +674,7 @@ class MainWindow(QMainWindow):
             self._image_handler.current_slice = value
             self._display_current_slice()
             self._update_ui_state()
+            self._update_measurements_table()
 
     @Slot()
     def _on_apply_slice_name(self):
@@ -685,6 +719,7 @@ class MainWindow(QMainWindow):
         laterals = self._root_tracer.trace_laterals_for_root(current_id)
         self._update_canvas_display()
         self._update_root_list()
+        self._update_measurements_table()
         self._statusbar.showMessage(f"Found {len(laterals)} laterals")
         self._update_ui_state()
 
@@ -760,13 +795,18 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No data to export")
             return
 
+        # Use image name as default filename
+        default_name = self._image_handler.file_name or "root_measurements"
+        default_path = f"{default_name}_measurements.csv"
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Measurements", "root_measurements.csv", "CSV Files (*.csv)"
+            self, "Export Measurements", default_path, "CSV Files (*.csv)"
         )
 
         if file_path:
             unit = self._cmb_unit.currentText()
-            if CSVExporter.export_measurements(file_path, export_data, 1.0, unit):
+            pixels_per_unit = self._spin_pixels_per_unit.value()
+            if CSVExporter.export_measurements(file_path, export_data, pixels_per_unit, unit):
                 self._statusbar.showMessage(f"Exported to {file_path}")
 
     @Slot()
@@ -776,12 +816,17 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Warning", "No data to export")
             return
 
+        # Use image name as default filename
+        default_name = self._image_handler.file_name or "root_points"
+        default_path = f"{default_name}_points.csv"
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export Points", "root_points.csv", "CSV Files (*.csv)"
+            self, "Export Points", default_path, "CSV Files (*.csv)"
         )
 
         if file_path:
-            if CSVExporter.export_points(file_path, export_data, 1.0):
+            pixels_per_unit = self._spin_pixels_per_unit.value()
+            if CSVExporter.export_points(file_path, export_data, pixels_per_unit):
                 self._statusbar.showMessage(f"Exported to {file_path}")
 
     def _show_about(self):
@@ -790,9 +835,11 @@ class MainWindow(QMainWindow):
             "Arabidopsis Root Tracer",
             "<h3>Arabidopsis Root Tracer</h3>"
             "<p>Semi-automatic root tracing for Arabidopsis plates.</p>"
-            "<p><b>Live Trace:</b> Click and drag along roots</p>"
-            "<p><b>Delete:</b> Click laterals to remove</p>"
-            "<p><b>Manual:</b> Click start/end for laterals</p>"
+            "<p><b>Click Start (S):</b> Click start point, then press T to trace</p>"
+            "<p><b>Start+End (E):</b> Click start, then click end of root</p>"
+            "<p><b>Delete (X):</b> Click laterals to remove</p>"
+            "<p><b>Manual (M):</b> Click start/end for laterals</p>"
+            "<p><b>Shortcuts:</b> L=Laterals, A/D=Slices, F=Fit</p>"
         )
 
     def closeEvent(self, event):
