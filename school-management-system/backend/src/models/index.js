@@ -27,8 +27,12 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('principal', 'teacher', 'parent', 'accountant', 'admin'),
+    type: DataTypes.ENUM('superadmin', 'principal', 'teacher', 'parent', 'accountant', 'admin'),
     allowNull: false
+  },
+  schoolId: {
+    type: DataTypes.UUID,
+    allowNull: true // null for superadmin (platform-level)
   },
   phone: {
     type: DataTypes.STRING

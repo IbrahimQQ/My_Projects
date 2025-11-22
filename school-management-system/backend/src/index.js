@@ -26,6 +26,10 @@ const reportRoutes = require('./routes/report.routes');
 const accountingRoutes = require('./routes/accounting.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const auditRoutes = require('./routes/audit.routes');
+const schoolRoutes = require('./routes/school.routes');
+
+// Tenant middleware
+const { extractTenant } = require('./middleware/tenant.middleware');
 
 const app = express();
 const httpServer = createServer(app);
@@ -58,6 +62,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('combined'));
 app.use('/api/', limiter);
 
+// Extract tenant context for all API requests
+app.use('/api/', extractTenant);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -80,6 +87,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/schools', schoolRoutes);
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
