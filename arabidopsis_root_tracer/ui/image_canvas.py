@@ -52,6 +52,7 @@ class ImageCanvas(QGraphicsView):
 
         # Highlight for selected/hovered items
         self._highlighted_lateral: Optional[Tuple[int, int]] = None
+        self._highlighted_root: Optional[int] = None  # Root ID to highlight
 
         # Colors for different roots
         self._root_colors = [
@@ -146,12 +147,27 @@ class ImageCanvas(QGraphicsView):
             color_idx = i % len(self._root_colors)
             root_color = self._root_colors[color_idx]
 
+            # Check if this root is highlighted (selected in list)
+            is_highlighted_root = (self._highlighted_root is not None and
+                                   self._highlighted_root == root_id)
+
+            # Use brighter color for highlighted root
+            if is_highlighted_root:
+                # Brighten the color for highlighted root
+                root_color = (
+                    min(255, root_color[0] + 100),
+                    min(255, root_color[1] + 100),
+                    min(255, root_color[2] + 100)
+                )
+
             points = root.get('points', [])
             if len(points) > 1:
+                # Draw thicker line for highlighted root
                 for j in range(len(points) - 1):
                     x1, y1 = points[j]
                     x2, y2 = points[j + 1]
-                    self._draw_line(result, x1, y1, x2, y2, root_color)
+                    self._draw_line(result, x1, y1, x2, y2, root_color,
+                                   thick=is_highlighted_root)
 
             laterals = root.get('laterals', [])
             for lat in laterals:
@@ -186,7 +202,7 @@ class ImageCanvas(QGraphicsView):
         return result
 
     def _draw_line(self, img: np.ndarray, x1: int, y1: int, x2: int, y2: int,
-                   color: Tuple[int, int, int]):
+                   color: Tuple[int, int, int], thick: bool = False):
         """Draw a line using Bresenham's algorithm."""
         height, width = img.shape[:2]
         dx = abs(x2 - x1)
@@ -195,10 +211,13 @@ class ImageCanvas(QGraphicsView):
         sy = 1 if y1 < y2 else -1
         err = dx - dy
 
+        # Thicker line for highlighted root
+        radius = 2 if thick else 1
+
         x, y = x1, y1
         while True:
-            for ox in range(-1, 2):
-                for oy in range(-1, 2):
+            for ox in range(-radius, radius + 1):
+                for oy in range(-radius, radius + 1):
                     px, py = x + ox, y + oy
                     if 0 <= px < width and 0 <= py < height:
                         img[py, px] = color
@@ -248,6 +267,11 @@ class ImageCanvas(QGraphicsView):
             self._highlighted_lateral = (root_id, lateral_id)
         else:
             self._highlighted_lateral = None
+        self._update_display()
+
+    def set_highlighted_root(self, root_id: Optional[int]):
+        """Set which root is highlighted (selected in list)."""
+        self._highlighted_root = root_id
         self._update_display()
 
     def clear_tracings(self):

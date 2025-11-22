@@ -146,14 +146,17 @@ class MainWindow(QMainWindow):
         trace_layout.addWidget(self._chk_invert)
 
         self._btn_trace_laterals = QPushButton("Trace Laterals (L)")
+        self._btn_trace_all_laterals = QPushButton("Trace All Laterals (Shift+L)")
         self._btn_clear_current = QPushButton("Clear Selected Root (C)")
         self._btn_clear_all = QPushButton("Clear All Roots")
 
         trace_layout.addWidget(self._btn_trace_laterals)
+        trace_layout.addWidget(self._btn_trace_all_laterals)
         trace_layout.addWidget(self._btn_clear_current)
         trace_layout.addWidget(self._btn_clear_all)
 
         right_layout.addWidget(trace_group)
+        right_layout.addSpacing(5)
 
         # Root list
         roots_group = QGroupBox("Roots")
@@ -299,6 +302,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("M"), self, lambda: self._set_mode("manual"))
         QShortcut(QKeySequence("P"), self, lambda: self._set_mode("pan"))
         QShortcut(QKeySequence("L"), self, self._on_trace_laterals)
+        QShortcut(QKeySequence("Shift+L"), self, self._on_trace_all_laterals)
         QShortcut(QKeySequence("C"), self, self._on_clear_current_root)
         QShortcut(QKeySequence("A"), self, self._on_prev_slice)
         QShortcut(QKeySequence("D"), self, self._on_next_slice)
@@ -340,6 +344,7 @@ class MainWindow(QMainWindow):
         # Root list
         self._list_roots.currentRowChanged.connect(self._on_root_selected)
         self._btn_delete_root.clicked.connect(self._on_delete_selected_root)
+        self._btn_trace_all_laterals.clicked.connect(self._on_trace_all_laterals)
 
         # Scale changes
         self._spin_pixels_per_unit.valueChanged.connect(self._update_measurements_table)
@@ -457,8 +462,8 @@ class MainWindow(QMainWindow):
                         lat.get('points', []), pixels_per_unit
                     )
 
-                # Lateral density = count / root length
-                lat_density = lat_count / root_length if root_length > 0 else 0
+                # Lateral density = root length / lateral count
+                lat_density = root_length / lat_count if lat_count > 0 else 0
 
                 # Lateral length per unit root = total lat length / root length
                 lat_per_unit = total_lat_length / root_length if root_length > 0 else 0
@@ -727,6 +732,10 @@ class MainWindow(QMainWindow):
             if item:
                 root_id = item.data(Qt.ItemDataRole.UserRole)
                 self._root_tracer.set_current_root_id(root_id)
+                # Highlight selected root on canvas
+                self._canvas.set_highlighted_root(root_id)
+        else:
+            self._canvas.set_highlighted_root(None)
 
     @Slot()
     def _on_delete_selected_root(self):
@@ -754,6 +763,25 @@ class MainWindow(QMainWindow):
         self._update_root_list()
         self._update_measurements_table()
         self._statusbar.showMessage(f"Found {len(laterals)} laterals")
+        self._update_ui_state()
+
+    @Slot()
+    def _on_trace_all_laterals(self):
+        """Trace laterals for all roots on current slice."""
+        roots = self._root_tracer.get_all_roots()
+        if not roots:
+            self._statusbar.showMessage("No roots traced")
+            return
+
+        total_laterals = 0
+        for root in roots:
+            laterals = self._root_tracer.trace_laterals_for_root(root['id'])
+            total_laterals += len(laterals)
+
+        self._update_canvas_display()
+        self._update_root_list()
+        self._update_measurements_table()
+        self._statusbar.showMessage(f"Found {total_laterals} laterals across {len(roots)} roots")
         self._update_ui_state()
 
     @Slot()
@@ -895,9 +923,13 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            from ml.dataset import RootDataset
+            # Export as numpy arrays (no PyTorch dependency)
+            import numpy as np
+            import json
 
             count = 0
+            index = []
+
             for slice_idx, roots in self._slice_data.items():
                 if not roots:
                     continue
@@ -911,22 +943,90 @@ class MainWindow(QMainWindow):
                 slice_name = self._image_handler.get_slice_name(slice_idx)
                 sample_id = f"{self._image_handler.file_name}_{slice_name}".replace(" ", "_")
 
-                # Save sample
-                RootDataset.save_sample(
-                    dir_path, sample_id, img, roots,
-                    main_width=5, lateral_width=3
-                )
+                # Save image
+                np.save(os.path.join(dir_path, f"{sample_id}.npy"), img)
+
+                # Create mask from traced roots
+                mask = self._create_training_mask(img.shape, roots)
+                np.save(os.path.join(dir_path, f"{sample_id}_mask.npy"), mask)
+
+                index.append({
+                    'image': f"{sample_id}.npy",
+                    'mask': f"{sample_id}_mask.npy"
+                })
                 count += 1
+
+            # Save index
+            with open(os.path.join(dir_path, 'index.json'), 'w') as f:
+                json.dump(index, f, indent=2)
 
             self._statusbar.showMessage(f"Exported {count} training samples to {dir_path}")
             QMessageBox.information(
                 self, "Export Complete",
                 f"Exported {count} training samples.\n\n"
-                f"You can now use 'Train Model' to train on this data."
+                f"You can now use 'Train Model' to train on this data.\n"
+                f"Note: Training requires PyTorch to be installed."
             )
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to export training data: {e}")
+
+    def _create_training_mask(self, shape, roots, main_width=5, lateral_width=3):
+        """Create a segmentation mask from traced roots."""
+        import numpy as np
+
+        mask = np.zeros(shape, dtype=np.uint8)
+
+        for root in roots:
+            # Draw main root
+            main_points = root.get('points', [])
+            if main_points:
+                self._draw_path_on_mask(mask, main_points, value=1, width=main_width)
+
+            # Draw laterals
+            for lateral in root.get('laterals', []):
+                lat_points = lateral.get('points', [])
+                if lat_points:
+                    self._draw_path_on_mask(mask, lat_points, value=2, width=lateral_width)
+
+        return mask
+
+    def _draw_path_on_mask(self, mask, points, value, width):
+        """Draw a path on the mask."""
+        height, w = mask.shape
+
+        for i in range(len(points) - 1):
+            x1, y1 = points[i]
+            x2, y2 = points[i + 1]
+
+            # Bresenham's line
+            dx = abs(x2 - x1)
+            dy = abs(y2 - y1)
+            sx = 1 if x1 < x2 else -1
+            sy = 1 if y1 < y2 else -1
+            err = dx - dy
+
+            x, y = x1, y1
+            while True:
+                # Draw circle for width
+                for wy in range(-width // 2, width // 2 + 1):
+                    for wx in range(-width // 2, width // 2 + 1):
+                        if wx * wx + wy * wy <= (width // 2) ** 2:
+                            py, px = y + wy, x + wx
+                            if 0 <= py < height and 0 <= px < w:
+                                if mask[py, px] == 0 or mask[py, px] == value:
+                                    mask[py, px] = value
+
+                if x == x2 and y == y2:
+                    break
+
+                e2 = 2 * err
+                if e2 > -dy:
+                    err -= dy
+                    x += sx
+                if e2 < dx:
+                    err += dx
+                    y += sy
 
     @Slot()
     def _on_train_model(self):

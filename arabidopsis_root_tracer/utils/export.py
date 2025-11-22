@@ -42,7 +42,7 @@ class CSVExporter:
                     f'Root Length ({unit})',
                     'Lateral Count',
                     f'Total Lateral Length ({unit})',
-                    f'Lateral Density (count/{unit})',
+                    f'Lateral Density ({unit}/lateral)',
                     f'Lateral Length per {unit} Root'
                 ])
 
@@ -54,8 +54,8 @@ class CSVExporter:
                     lat_count = len(laterals)
                     total_lat_length = sum(l.get('length', 0) for l in laterals)
 
-                    # Lateral density = count / root length
-                    lat_density = lat_count / root_length if root_length > 0 else 0
+                    # Lateral density = root length / lateral count
+                    lat_density = root_length / lat_count if lat_count > 0 else 0
 
                     # Lateral length per unit root = total lat length / root length
                     lat_per_unit = total_lat_length / root_length if root_length > 0 else 0
