@@ -18,6 +18,7 @@ import SubjectForm from './pages/SubjectForm';
 import AcademicYears from './pages/AcademicYears';
 import Assessments from './pages/Assessments';
 import Reports from './pages/Reports';
+import ReportCardGenerator from './pages/ReportCardGenerator';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import AuditLogs from './pages/AuditLogs';
@@ -60,6 +61,7 @@ function App() {
         <Route path="academic-years" element={<AcademicYears />} />
         <Route path="assessments" element={<Assessments />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="report-cards" element={<ReportCardGenerator />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="accounting" element={<Accounting />} />
         <Route path="audit-logs" element={<AuditLogs />} />

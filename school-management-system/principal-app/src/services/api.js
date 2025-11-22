@@ -137,6 +137,8 @@ export const reportService = {
   getClassReport: (params) => api.get('/reports/class', { params }),
   getAttendanceReport: (params) => api.get('/reports/attendance', { params }),
   generateCustomReport: (data) => api.post('/reports/custom', data),
+  generateReportCard: (params) => api.get('/reports/report-card', { params }),
+  generateClassReportCards: (params) => api.get('/reports/report-cards/class', { params }),
 };
 
 export const dashboardService = {

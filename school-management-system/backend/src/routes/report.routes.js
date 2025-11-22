@@ -17,4 +17,10 @@ router.get('/attendance', authorize('principal', 'admin', 'teacher'), reportCont
 // Generate custom report
 router.post('/custom', authorize('principal', 'admin'), reportController.generateCustomReport);
 
+// Generate comprehensive report card for a student
+router.get('/report-card', authorize('principal', 'admin', 'teacher', 'parent'), reportController.generateReportCard);
+
+// Generate report cards for entire class
+router.get('/report-cards/class', authorize('principal', 'admin', 'teacher'), reportController.generateClassReportCards);
+
 module.exports = router;

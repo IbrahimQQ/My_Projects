@@ -4,7 +4,7 @@ import { useAuthStore } from '../context/authStore';
 import {
   LayoutDashboard, Users, GraduationCap, UserCircle, School,
   BookOpen, Calendar, ClipboardList, FileText, Bell, Settings,
-  LogOut, Menu, X, DollarSign, Shield
+  LogOut, Menu, X, DollarSign, Shield, Award
 } from 'lucide-react';
 
 const Layout = () => {
@@ -27,6 +27,7 @@ const Layout = () => {
     { path: '/academic-years', icon: Calendar, label: 'Academic Years' },
     { path: '/assessments', icon: ClipboardList, label: 'Assessments' },
     { path: '/reports', icon: FileText, label: 'Reports' },
+    { path: '/report-cards', icon: Award, label: 'Report Cards' },
     { path: '/notifications', icon: Bell, label: 'Notifications' },
     { path: '/accounting', icon: DollarSign, label: 'Accounting' },
     { path: '/audit-logs', icon: Shield, label: 'Audit Logs' },
