@@ -41,6 +41,10 @@ class MainWindow(QMainWindow):
         self._start_end_first: Optional[tuple] = None  # For MODE_START_END
         self._manual_lateral_start: Optional[tuple] = None
 
+        # ML components (lazy loaded)
+        self._ml_model = None
+        self._ml_predictor = None
+
         # Setup UI
         self._setup_ui()
         self._setup_menubar()
@@ -199,6 +203,18 @@ class MainWindow(QMainWindow):
         export_layout.addWidget(self._btn_export_points)
         right_layout.addWidget(export_group)
 
+        # Machine Learning
+        ml_group = QGroupBox("Machine Learning")
+        ml_layout = QVBoxLayout(ml_group)
+        self._btn_export_training = QPushButton("Export Training Data")
+        self._btn_train_model = QPushButton("Train Model...")
+        self._btn_auto_detect = QPushButton("Auto-Detect Roots")
+        self._btn_auto_detect.setEnabled(False)  # Disabled until model loaded
+        ml_layout.addWidget(self._btn_export_training)
+        ml_layout.addWidget(self._btn_train_model)
+        ml_layout.addWidget(self._btn_auto_detect)
+        right_layout.addWidget(ml_group)
+
         right_layout.addStretch()
 
         # Shortcuts help
@@ -332,6 +348,11 @@ class MainWindow(QMainWindow):
         # Export
         self._btn_export_all.clicked.connect(self._on_export_all)
         self._btn_export_points.clicked.connect(self._on_export_points)
+
+        # Machine Learning
+        self._btn_export_training.clicked.connect(self._on_export_training_data)
+        self._btn_train_model.clicked.connect(self._on_train_model)
+        self._btn_auto_detect.clicked.connect(self._on_auto_detect)
 
     def _set_mode(self, mode: str):
         mode_map = {
@@ -853,6 +874,328 @@ class MainWindow(QMainWindow):
             "<p><b>Manual (M):</b> Click start/end for laterals</p>"
             "<p><b>Shortcuts:</b> L=Laterals, A/D=Slices, F=Fit</p>"
         )
+
+    # ==================== Machine Learning Methods ====================
+
+    @Slot()
+    def _on_export_training_data(self):
+        """Export current tracings as training data for ML model."""
+        self._save_current_slice_data()
+
+        if not self._slice_data:
+            QMessageBox.warning(self, "Warning", "No traced data to export")
+            return
+
+        # Choose output directory
+        dir_path = QFileDialog.getExistingDirectory(
+            self, "Select Training Data Directory", ""
+        )
+
+        if not dir_path:
+            return
+
+        try:
+            from ml.dataset import RootDataset
+
+            count = 0
+            for slice_idx, roots in self._slice_data.items():
+                if not roots:
+                    continue
+
+                # Get image for this slice
+                img = self._image_handler.normalize_slice(slice_idx)
+                if img is None:
+                    continue
+
+                # Generate sample ID
+                slice_name = self._image_handler.get_slice_name(slice_idx)
+                sample_id = f"{self._image_handler.file_name}_{slice_name}".replace(" ", "_")
+
+                # Save sample
+                RootDataset.save_sample(
+                    dir_path, sample_id, img, roots,
+                    main_width=5, lateral_width=3
+                )
+                count += 1
+
+            self._statusbar.showMessage(f"Exported {count} training samples to {dir_path}")
+            QMessageBox.information(
+                self, "Export Complete",
+                f"Exported {count} training samples.\n\n"
+                f"You can now use 'Train Model' to train on this data."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export training data: {e}")
+
+    @Slot()
+    def _on_train_model(self):
+        """Open training dialog."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QProgressBar, QTextEdit
+        from PySide6.QtCore import QThread, Signal as QSignal, QObject
+
+        # Training dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Train Root Detection Model")
+        dialog.setMinimumSize(500, 400)
+
+        layout = QVBoxLayout(dialog)
+
+        # Data directory selection
+        data_layout = QHBoxLayout()
+        data_layout.addWidget(QLabel("Training Data:"))
+        data_path_edit = QLineEdit()
+        data_path_edit.setPlaceholderText("Select training data directory...")
+        btn_browse = QPushButton("Browse...")
+        data_layout.addWidget(data_path_edit, stretch=1)
+        data_layout.addWidget(btn_browse)
+        layout.addLayout(data_layout)
+
+        def browse_data():
+            path = QFileDialog.getExistingDirectory(dialog, "Select Training Data")
+            if path:
+                data_path_edit.setText(path)
+
+        btn_browse.clicked.connect(browse_data)
+
+        # Parameters
+        param_layout = QHBoxLayout()
+        param_layout.addWidget(QLabel("Epochs:"))
+        epochs_spin = QSpinBox()
+        epochs_spin.setRange(10, 500)
+        epochs_spin.setValue(50)
+        param_layout.addWidget(epochs_spin)
+        param_layout.addWidget(QLabel("Batch Size:"))
+        batch_spin = QSpinBox()
+        batch_spin.setRange(1, 32)
+        batch_spin.setValue(4)
+        param_layout.addWidget(batch_spin)
+        param_layout.addStretch()
+        layout.addLayout(param_layout)
+
+        # Progress
+        progress = QProgressBar()
+        progress.setRange(0, 100)
+        layout.addWidget(progress)
+
+        # Log output
+        log_text = QTextEdit()
+        log_text.setReadOnly(True)
+        log_text.setMaximumHeight(200)
+        layout.addWidget(log_text)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_train = QPushButton("Start Training")
+        btn_close = QPushButton("Close")
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_train)
+        btn_layout.addWidget(btn_close)
+        layout.addLayout(btn_layout)
+
+        btn_close.clicked.connect(dialog.close)
+
+        # Training thread
+        class TrainingWorker(QObject):
+            progress_signal = QSignal(dict)
+            finished_signal = QSignal(str)
+            error_signal = QSignal(str)
+
+            def __init__(self, data_dir, epochs, batch_size, save_path):
+                super().__init__()
+                self.data_dir = data_dir
+                self.epochs = epochs
+                self.batch_size = batch_size
+                self.save_path = save_path
+
+            def run(self):
+                try:
+                    from ml.model import RootSegmentationModel
+                    from ml.trainer import RootTrainer
+                    from ml.dataset import RootDataset
+
+                    # Load dataset
+                    dataset = RootDataset(self.data_dir, augment=True)
+                    if len(dataset) == 0:
+                        self.error_signal.emit("No training samples found in directory")
+                        return
+
+                    # Prepare data loaders
+                    train_loader, val_loader = RootTrainer.prepare_dataloaders(
+                        dataset, batch_size=self.batch_size, val_split=0.2
+                    )
+
+                    # Create model and trainer
+                    model = RootSegmentationModel(n_classes=3)
+                    trainer = RootTrainer(model)
+
+                    # Train with progress callback
+                    def on_progress(metrics):
+                        self.progress_signal.emit(metrics)
+
+                    trainer.train(
+                        train_loader, val_loader,
+                        epochs=self.epochs,
+                        save_path=self.save_path,
+                        progress_callback=on_progress
+                    )
+
+                    self.finished_signal.emit(self.save_path)
+
+                except Exception as e:
+                    self.error_signal.emit(str(e))
+
+        training_thread = None
+        worker = None
+
+        def start_training():
+            nonlocal training_thread, worker
+
+            data_dir = data_path_edit.text()
+            if not data_dir or not os.path.isdir(data_dir):
+                QMessageBox.warning(dialog, "Warning", "Please select a valid training data directory")
+                return
+
+            # Save path
+            save_path = os.path.join(data_dir, "root_model.pth")
+
+            btn_train.setEnabled(False)
+            log_text.clear()
+            log_text.append(f"Starting training with {epochs_spin.value()} epochs...")
+
+            # Create worker thread
+            worker = TrainingWorker(
+                data_dir, epochs_spin.value(), batch_spin.value(), save_path
+            )
+            training_thread = QThread()
+            worker.moveToThread(training_thread)
+
+            training_thread.started.connect(worker.run)
+            worker.progress_signal.connect(lambda m: on_training_progress(m))
+            worker.finished_signal.connect(lambda p: on_training_finished(p))
+            worker.error_signal.connect(lambda e: on_training_error(e))
+            worker.finished_signal.connect(training_thread.quit)
+            worker.error_signal.connect(training_thread.quit)
+
+            training_thread.start()
+
+        def on_training_progress(metrics):
+            epoch = metrics['epoch']
+            total = metrics['total_epochs']
+            progress.setValue(int(epoch / total * 100))
+            log_text.append(
+                f"Epoch {epoch}/{total} - "
+                f"Loss: {metrics['train_loss']:.4f}/{metrics['val_loss']:.4f} - "
+                f"IoU: {metrics['train_iou']:.4f}/{metrics['val_iou']:.4f}"
+            )
+
+        def on_training_finished(save_path):
+            btn_train.setEnabled(True)
+            log_text.append(f"\nTraining complete! Model saved to: {save_path}")
+            progress.setValue(100)
+
+            # Load the trained model
+            self._load_ml_model(save_path)
+            QMessageBox.information(
+                dialog, "Training Complete",
+                f"Model trained and saved to:\n{save_path}\n\n"
+                "You can now use 'Auto-Detect Roots' to detect roots automatically."
+            )
+
+        def on_training_error(error):
+            btn_train.setEnabled(True)
+            log_text.append(f"\nError: {error}")
+            QMessageBox.critical(dialog, "Training Error", str(error))
+
+        btn_train.clicked.connect(start_training)
+
+        dialog.exec()
+
+    def _load_ml_model(self, path: str):
+        """Load a trained ML model."""
+        try:
+            from ml.model import RootSegmentationModel
+            from ml.inference import RootPredictor
+
+            self._ml_model = RootSegmentationModel(n_classes=3)
+            self._ml_model.load(path)
+            self._ml_predictor = RootPredictor(self._ml_model)
+            self._btn_auto_detect.setEnabled(True)
+            self._statusbar.showMessage(f"ML model loaded from {path}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load model: {e}")
+
+    @Slot()
+    def _on_auto_detect(self):
+        """Auto-detect roots using ML model."""
+        if self._ml_predictor is None:
+            # Try to load model from default location
+            default_paths = [
+                "training_data/root_model.pth",
+                "root_model.pth",
+            ]
+            for path in default_paths:
+                if os.path.exists(path):
+                    self._load_ml_model(path)
+                    break
+
+        if self._ml_predictor is None:
+            QMessageBox.warning(
+                self, "No Model",
+                "No trained model loaded. Please train a model first or load an existing one."
+            )
+            return
+
+        if not self._image_handler.is_loaded:
+            QMessageBox.warning(self, "Warning", "No image loaded")
+            return
+
+        self._statusbar.showMessage("Detecting roots...")
+
+        try:
+            # Get current image
+            img = self._image_handler.normalize_slice()
+
+            # Detect roots
+            detected_roots = self._ml_predictor.predict_roots(
+                img,
+                min_main_length=50,
+                min_lateral_length=10,
+                confidence_threshold=0.5
+            )
+
+            if not detected_roots:
+                self._statusbar.showMessage("No roots detected")
+                QMessageBox.information(self, "Detection", "No roots detected in this image.")
+                return
+
+            # Add detected roots to tracer
+            for root in detected_roots:
+                # Add main root
+                result = self._root_tracer.add_root_from_points(root['points'])
+                if result:
+                    # Add laterals
+                    for lateral in root.get('laterals', []):
+                        self._root_tracer.add_manual_lateral(
+                            result['id'],
+                            lateral['points'][0],
+                            lateral['points'][-1]
+                        )
+
+            self._update_canvas_display()
+            self._update_root_list()
+            self._update_measurements_table()
+
+            num_roots = len(detected_roots)
+            num_laterals = sum(len(r.get('laterals', [])) for r in detected_roots)
+            self._statusbar.showMessage(
+                f"Detected {num_roots} roots with {num_laterals} laterals"
+            )
+
+        except Exception as e:
+            self._statusbar.showMessage("Detection failed")
+            QMessageBox.critical(self, "Error", f"Auto-detection failed: {e}")
 
     def closeEvent(self, event):
         self._save_current_slice_data()
