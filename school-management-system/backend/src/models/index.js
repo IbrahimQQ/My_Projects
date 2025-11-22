@@ -1,5 +1,9 @@
 const sequelize = require('../config/database');
 const { DataTypes } = require('sequelize');
+const defineSchoolModel = require('./School');
+
+// Initialize School model
+const School = defineSchoolModel(sequelize);
 
 // User Model (Base for all user types)
 const User = sequelize.define('User', {
@@ -982,8 +986,13 @@ Expense.belongsTo(User, { foreignKey: 'approvedBy', as: 'approver' });
 // Salary relationships
 Salary.belongsTo(TeacherProfile, { foreignKey: 'teacherId' });
 
+// School relationships
+School.hasMany(User, { foreignKey: 'schoolId', as: 'users' });
+User.belongsTo(School, { foreignKey: 'schoolId', as: 'school' });
+
 module.exports = {
   sequelize,
+  School,
   User,
   AcademicYear,
   Term,

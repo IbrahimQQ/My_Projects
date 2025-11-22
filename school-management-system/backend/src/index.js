@@ -27,6 +27,7 @@ const accountingRoutes = require('./routes/accounting.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const auditRoutes = require('./routes/audit.routes');
 const schoolRoutes = require('./routes/school.routes');
+const platformRoutes = require('./routes/platform.routes');
 
 // Tenant middleware
 const { extractTenant } = require('./middleware/tenant.middleware');
@@ -88,6 +89,7 @@ app.use('/api/accounting', accountingRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/schools', schoolRoutes);
+app.use('/api/platform', platformRoutes);
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
