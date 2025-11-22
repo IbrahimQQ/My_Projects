@@ -136,6 +136,11 @@ class MainWindow(QMainWindow):
         thresh_layout.addWidget(self._spin_threshold)
         trace_layout.addLayout(thresh_layout)
 
+        # Invert checkbox for black roots on white background
+        from PySide6.QtWidgets import QCheckBox
+        self._chk_invert = QCheckBox("Invert (black roots on white)")
+        trace_layout.addWidget(self._chk_invert)
+
         self._btn_trace_laterals = QPushButton("Trace Laterals (L)")
         self._btn_clear_current = QPushButton("Clear Selected Root (C)")
         self._btn_clear_all = QPushButton("Clear All Roots")
@@ -311,6 +316,7 @@ class MainWindow(QMainWindow):
 
         # Tracing controls
         self._spin_threshold.valueChanged.connect(self._on_threshold_changed)
+        self._chk_invert.stateChanged.connect(self._on_invert_changed)
         self._btn_trace_laterals.clicked.connect(self._on_trace_laterals)
         self._btn_clear_current.clicked.connect(self._on_clear_current_root)
         self._btn_clear_all.clicked.connect(self._on_clear_all)
@@ -505,6 +511,7 @@ class MainWindow(QMainWindow):
             if self._image_handler.load_tiff(file_path):
                 self._slice_data = {}
                 self._root_tracer.clear_tracings()
+                self._root_tracer.clear_cache()  # Clear skeleton cache for new image
                 self._canvas.clear_tracings()
 
                 self._slice_slider.setMaximum(self._image_handler.num_slices - 1)
@@ -521,15 +528,15 @@ class MainWindow(QMainWindow):
             self._update_ui_state()
 
     def _display_current_slice(self):
-        """Display current slice - optimized."""
+        """Display current slice - optimized with caching."""
         if not self._image_handler.is_loaded:
             return
 
         img = self._image_handler.normalize_slice()
         if img is not None:
+            slice_idx = self._image_handler.current_slice
             self._canvas.set_image(img)
-            self._root_tracer.set_image(img)
-            self._root_tracer.set_threshold(self._spin_threshold.value())
+            self._root_tracer.set_image(img, slice_idx)
 
             # Load saved data for THIS slice only
             self._load_slice_data()
@@ -686,6 +693,11 @@ class MainWindow(QMainWindow):
     @Slot(int)
     def _on_threshold_changed(self, value: int):
         self._root_tracer.set_threshold(value)
+
+    @Slot(int)
+    def _on_invert_changed(self, state: int):
+        self._root_tracer.set_invert(state != 0)
+        self._statusbar.showMessage("Invert changed - re-click start point to trace")
 
     @Slot(int)
     def _on_root_selected(self, row: int):

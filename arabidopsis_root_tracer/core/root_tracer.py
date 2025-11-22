@@ -4,7 +4,7 @@ Supports semi-automatic tracing of main roots and lateral roots.
 """
 
 import numpy as np
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Any
 from scipy import ndimage
 from scipy.ndimage import binary_dilation, distance_transform_edt
 from skimage.morphology import skeletonize, binary_closing, binary_opening, disk
@@ -28,21 +28,48 @@ class RootTracer:
         self._current_root_id: int = 0
         self._next_root_id: int = 1
         self._threshold: int = 30
+        self._invert: bool = False
+        # Cache for skeletons per slice
+        self._skeleton_cache: Dict[int, np.ndarray] = {}
+        self._mask_cache: Dict[int, np.ndarray] = {}
+        self._current_slice_idx: int = 0
 
-    def set_image(self, image: np.ndarray):
+    def set_image(self, image: np.ndarray, slice_idx: int = 0):
         """Set the image to trace on."""
         self._image = image.copy()
+        self._current_slice_idx = slice_idx
         self._preprocess_image()
 
     def set_threshold(self, threshold: int):
         """Set the binarization threshold."""
-        self._threshold = max(1, min(255, threshold))
-        if self._image is not None:
-            self._preprocess_image()
+        new_threshold = max(1, min(255, threshold))
+        if new_threshold != self._threshold:
+            self._threshold = new_threshold
+            # Clear cache when threshold changes
+            self._skeleton_cache.clear()
+            self._mask_cache.clear()
+            if self._image is not None:
+                self._preprocess_image()
+
+    def set_invert(self, invert: bool):
+        """Set whether to invert the image (for black roots on white background)."""
+        if invert != self._invert:
+            self._invert = invert
+            # Clear cache when invert changes
+            self._skeleton_cache.clear()
+            self._mask_cache.clear()
+            if self._image is not None:
+                self._preprocess_image()
 
     def _preprocess_image(self):
         """Preprocess image for tracing."""
         if self._image is None:
+            return
+
+        # Check cache first
+        if self._current_slice_idx in self._skeleton_cache:
+            self._skeleton = self._skeleton_cache[self._current_slice_idx]
+            self._binary_mask = self._mask_cache[self._current_slice_idx]
             return
 
         # Normalize
@@ -51,10 +78,14 @@ class RootTracer:
             img = (img - img.min()) / (img.max() - img.min()) * 255
         img = img.astype(np.uint8)
 
+        # Invert if needed (for black roots on white background)
+        if self._invert:
+            img = 255 - img
+
         # Apply slight Gaussian blur to reduce noise
         img = gaussian(img, sigma=1, preserve_range=True).astype(np.uint8)
 
-        # Binarize (white roots on black background)
+        # Binarize (white roots on black background after potential inversion)
         self._binary_mask = img > self._threshold
 
         # Clean up with morphological operations
@@ -63,6 +94,10 @@ class RootTracer:
 
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)
+
+        # Cache the results
+        self._skeleton_cache[self._current_slice_idx] = self._skeleton.copy()
+        self._mask_cache[self._current_slice_idx] = self._binary_mask.copy()
 
     def trace_main_root(self, start_point: Tuple[int, int]) -> Dict:
         """
@@ -608,6 +643,11 @@ class RootTracer:
         self._main_roots = []
         self._current_root_id = 0
         self._next_root_id = 1
+
+    def clear_cache(self):
+        """Clear the skeleton cache (call when loading new image)."""
+        self._skeleton_cache.clear()
+        self._mask_cache.clear()
 
     def set_data(self, roots: List[Dict]):
         """Restore root data (for loading saved state)."""
