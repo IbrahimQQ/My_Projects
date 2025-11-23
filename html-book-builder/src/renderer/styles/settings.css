@@ -1,0 +1,271 @@
+/* Settings View */
+.settings-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 32px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.settings-section {
+    background-color: var(--surface-color);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.settings-section h3 {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 18px;
+}
+
+.setting-group {
+    margin-bottom: 20px;
+}
+
+.setting-group:last-child {
+    margin-bottom: 0;
+}
+
+.setting-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.setting-group input[type="text"],
+.setting-group input[type="email"],
+.setting-group textarea,
+.setting-group select {
+    font-size: 14px;
+}
+
+/* Theme Presets */
+.theme-presets {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.theme-preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--surface-color);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.theme-preset:hover {
+    border-color: var(--primary-color);
+}
+
+.theme-preset.active {
+    border-color: var(--primary-color);
+    background-color: rgba(37, 99, 235, 0.05);
+}
+
+.theme-preview {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.theme-light {
+    background: linear-gradient(135deg, #ffffff 50%, #f1f5f9 50%);
+}
+
+.theme-dark {
+    background: linear-gradient(135deg, #1e293b 50%, #0f172a 50%);
+}
+
+.theme-sepia {
+    background: linear-gradient(135deg, #fef3c7 50%, #fde68a 50%);
+}
+
+.theme-custom {
+    background: linear-gradient(135deg,
+        #ec4899 0%,
+        #8b5cf6 50%,
+        #3b82f6 100%
+    );
+}
+
+/* Color Settings */
+.color-settings {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.color-settings .setting-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0;
+}
+
+.color-settings label {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* Range Slider with Value */
+.setting-group input[type="range"] {
+    margin-right: 12px;
+}
+
+.setting-group input[type="range"] + span {
+    min-width: 48px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+/* Radio Group */
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.radio-label:hover {
+    background-color: var(--surface-hover);
+}
+
+.radio-label input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--primary-color);
+}
+
+.radio-label input[type="radio"]:checked + span {
+    color: var(--primary-color);
+}
+
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--primary-color);
+}
+
+/* Font Preview */
+.font-preview {
+    margin-top: 8px;
+    padding: 12px;
+    background-color: var(--surface-hover);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+}
+
+/* Custom CSS Editor */
+.code-textarea {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 2;
+    min-height: 200px;
+    resize: vertical;
+}
+
+/* Settings Actions */
+.settings-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 24px;
+}
+
+/* Settings Info */
+.settings-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background-color: rgba(37, 99, 235, 0.1);
+    border-radius: var(--radius-md);
+    border-left: 4px solid var(--primary-color);
+}
+
+.settings-info svg {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    color: var(--primary-color);
+}
+
+.settings-info p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+/* Project Info Section */
+.project-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.project-info-item {
+    padding: 16px;
+    background-color: var(--surface-hover);
+    border-radius: var(--radius-md);
+}
+
+.project-info-item label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.project-info-item .value {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Import/Export Settings */
+.settings-import-export {
+    display: flex;
+    gap: 12px;
+}
+
+.settings-import-export .btn {
+    flex: 1;
+}

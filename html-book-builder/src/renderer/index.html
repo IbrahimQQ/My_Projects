@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:; media-src 'self' file:; font-src 'self' data:;">
+    <title>HTML Book Builder</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/editor.css">
+    <link rel="stylesheet" href="styles/media-manager.css">
+    <link rel="stylesheet" href="styles/storyboard.css">
+    <link rel="stylesheet" href="styles/preview.css">
+    <link rel="stylesheet" href="styles/settings.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Top Toolbar -->
+        <header class="toolbar">
+            <div class="toolbar-left">
+                <div class="app-logo">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M19 2H6c-1.206 0-3 .799-3 3v14c0 2.201 1.794 3 3 3h15v-2H6.012C5.55 19.988 5 19.806 5 19s.55-.988 1.012-1H21V4c0-1.103-.897-2-2-2zm0 14H5V5c0-.806.55-.988 1-1h13v12z"/>
+                        <path d="M9 6h2v2H9zm0 4h2v2H9zm4-4h2v2h-2zm0 4h2v2h-2z"/>
+                    </svg>
+                    <span>HTML Book Builder</span>
+                </div>
+                <div class="project-name" id="projectName">Untitled Project</div>
+            </div>
+            <nav class="toolbar-center">
+                <button class="nav-btn active" data-view="editor" title="Editor (Ctrl+1)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M20 3H4c-1.103 0-2 .897-2 2v14c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zM4 19V7h16l.001 12H4z"/>
+                        <path d="M6 10h12v2H6zm0 4h12v2H6z"/>
+                    </svg>
+                    <span>Editor</span>
+                </button>
+                <button class="nav-btn" data-view="media" title="Media Manager (Ctrl+2)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M19 3H5c-1.103 0-2 .897-2 2v14c0 1.103.897 2 2 2h14c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zM5 19V5h14l.002 14H5z"/>
+                        <path d="m10 14 1 4h2l1-4 4-1-4-1-1-4h-2l-1 4-4 1z"/>
+                    </svg>
+                    <span>Media</span>
+                </button>
+                <button class="nav-btn" data-view="storyboard" title="Storyboard (Ctrl+3)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M20 3H4c-1.103 0-2 .897-2 2v14c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zM4 19V5h16l.001 14H4z"/>
+                        <path d="M6 7h5v4H6zm0 6h5v4H6zm7-6h5v4h-5zm0 6h5v4h-5z"/>
+                    </svg>
+                    <span>Storyboard</span>
+                </button>
+                <button class="nav-btn" data-view="preview" title="Preview (Ctrl+4)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M12 9a3.02 3.02 0 0 0-3 3c0 1.642 1.358 3 3 3 1.641 0 3-1.358 3-3 0-1.641-1.359-3-3-3z"/>
+                        <path d="M12 5c-7.633 0-9.927 6.617-9.948 6.684L1.946 12l.106.316C2.073 12.383 4.367 19 12 19s9.927-6.617 9.948-6.684l.106-.316-.106-.316C21.927 11.617 19.633 5 12 5zm0 12c-5.351 0-7.424-3.846-7.926-5C4.578 10.842 6.652 7 12 7c5.351 0 7.424 3.846 7.926 5-.504 1.158-2.578 5-7.926 5z"/>
+                    </svg>
+                    <span>Preview</span>
+                </button>
+                <button class="nav-btn" data-view="settings" title="Settings (Ctrl+,)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M12 16c2.206 0 4-1.794 4-4s-1.794-4-4-4-4 1.794-4 4 1.794 4 4 4zm0-6c1.084 0 2 .916 2 2s-.916 2-2 2-2-.916-2-2 .916-2 2-2z"/>
+                        <path d="m2.845 16.136 1 1.73c.531.917 1.809 1.261 2.73.73l.529-.306A8.1 8.1 0 0 0 9 19.402V20c0 1.103.897 2 2 2h2c1.103 0 2-.897 2-2v-.598a8.132 8.132 0 0 0 1.896-1.111l.529.306c.923.53 2.198.188 2.731-.731l.999-1.729a2.001 2.001 0 0 0-.731-2.732l-.505-.292a7.718 7.718 0 0 0 0-2.224l.505-.292a2.002 2.002 0 0 0 .731-2.732l-.999-1.729c-.531-.92-1.808-1.265-2.731-.732l-.529.306A8.1 8.1 0 0 0 15 4.598V4c0-1.103-.897-2-2-2h-2c-1.103 0-2 .897-2 2v.598a8.132 8.132 0 0 0-1.896 1.111l-.529-.306c-.924-.531-2.2-.187-2.731.732l-.999 1.729a2.001 2.001 0 0 0 .731 2.732l.505.292a7.683 7.683 0 0 0 0 2.223l-.505.292a2.003 2.003 0 0 0-.731 2.733zm3.326-2.758A5.703 5.703 0 0 1 6 12c0-.462.058-.926.17-1.378a.999.999 0 0 0-.47-1.108l-1.123-.65.998-1.729 1.145.662a.997.997 0 0 0 1.188-.142 6.071 6.071 0 0 1 2.384-1.399A1 1 0 0 0 11 5.3V4h2v1.3a1 1 0 0 0 .708.956 6.083 6.083 0 0 1 2.384 1.399.999.999 0 0 0 1.188.142l1.144-.661 1 1.729-1.124.649a1 1 0 0 0-.47 1.108c.112.452.17.916.17 1.378 0 .461-.058.925-.171 1.378a1 1 0 0 0 .471 1.108l1.123.649-.998 1.729-1.145-.661a.996.996 0 0 0-1.188.142 6.071 6.071 0 0 1-2.384 1.399A1 1 0 0 0 13 18.7l.002 1.3H11v-1.3a1 1 0 0 0-.708-.956 6.083 6.083 0 0 1-2.384-1.399.992.992 0 0 0-1.188-.141l-1.144.662-1-1.729 1.124-.651a1 1 0 0 0 .471-1.108z"/>
+                    </svg>
+                    <span>Settings</span>
+                </button>
+            </nav>
+            <div class="toolbar-right">
+                <button class="btn btn-primary" id="exportBtn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="m12 16 4-5h-3V4h-2v7H8z"/>
+                        <path d="M20 18H4v-7H2v7c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2v-7h-2v7z"/>
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Editor View -->
+            <div class="view active" id="editorView">
+                <div class="editor-container">
+                    <!-- Chapter Sidebar -->
+                    <aside class="chapter-sidebar">
+                        <div class="sidebar-header">
+                            <h3>Chapters</h3>
+                            <button class="btn-icon" id="addChapterBtn" title="Add Chapter">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                    <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <ul class="chapter-list" id="chapterList">
+                            <!-- Chapters populated dynamically -->
+                        </ul>
+                    </aside>
+
+                    <!-- Content Editor -->
+                    <div class="content-editor">
+                        <div class="editor-header">
+                            <input type="text" class="chapter-title-input" id="chapterTitleInput" placeholder="Chapter Title">
+                            <div class="editor-actions">
+                                <button class="btn-icon" id="addBlockBtn" title="Add Block">
+                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                                        <path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="blocks-container" id="blocksContainer">
+                            <!-- Content blocks populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Block Inspector -->
+                    <aside class="block-inspector" id="blockInspector">
+                        <div class="inspector-header">
+                            <h3>Block Properties</h3>
+                        </div>
+                        <div class="inspector-content" id="inspectorContent">
+                            <p class="inspector-placeholder">Select a block to edit its properties</p>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            <!-- Media Manager View -->
+            <div class="view" id="mediaView">
+                <div class="media-container">
+                    <aside class="media-sidebar">
+                        <div class="sidebar-header">
+                            <h3>Asset Types</h3>
+                        </div>
+                        <ul class="media-type-list">
+                            <li class="media-type-item active" data-type="all">All Assets</li>
+                            <li class="media-type-item" data-type="images">Images</li>
+                            <li class="media-type-item" data-type="svgs">SVGs</li>
+                            <li class="media-type-item" data-type="videos">Videos</li>
+                            <li class="media-type-item" data-type="geogebra">GeoGebra</li>
+                            <li class="media-type-item" data-type="html-snippets">HTML Snippets</li>
+                            <li class="media-type-item" data-type="scripts">Scripts</li>
+                        </ul>
+                    </aside>
+                    <div class="media-content">
+                        <div class="media-toolbar">
+                            <button class="btn btn-secondary" id="importAssetBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                                </svg>
+                                Import Asset
+                            </button>
+                            <button class="btn btn-secondary" id="createSnippetBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M8 8h8v2H8zm0 4h8v2H8zm0 4h8v2H8z"/>
+                                    <path d="M20 3H4c-1.103 0-2 .897-2 2v14c0 1.103.897 2 2 2h16c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zM4 19V5h16l.001 14H4z"/>
+                                </svg>
+                                Create HTML Snippet
+                            </button>
+                        </div>
+                        <div class="media-grid" id="mediaGrid">
+                            <!-- Media items populated dynamically -->
+                        </div>
+                    </div>
+                    <aside class="media-inspector" id="mediaInspector">
+                        <div class="inspector-header">
+                            <h3>Asset Details</h3>
+                        </div>
+                        <div class="inspector-content" id="mediaInspectorContent">
+                            <p class="inspector-placeholder">Select an asset to view details</p>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            <!-- Storyboard View -->
+            <div class="view" id="storyboardView">
+                <div class="storyboard-container">
+                    <div class="storyboard-header">
+                        <h3>Content-Media Timeline</h3>
+                        <div class="storyboard-controls">
+                            <button class="btn btn-secondary" id="autoLinkBtn">Auto-Link</button>
+                        </div>
+                    </div>
+                    <div class="storyboard-timeline" id="storyboardTimeline">
+                        <!-- Timeline items populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview View -->
+            <div class="view" id="previewView">
+                <div class="preview-container">
+                    <div class="preview-toolbar">
+                        <div class="preview-device-buttons">
+                            <button class="device-btn active" data-device="desktop" title="Desktop">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                    <path d="M20 3H4c-1.103 0-2 .897-2 2v11c0 1.103.897 2 2 2h7v2H8v2h8v-2h-3v-2h7c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zM4 14V5h16l.002 9H4z"/>
+                                </svg>
+                            </button>
+                            <button class="device-btn" data-device="tablet" title="Tablet">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                    <path d="M6 2c-1.103 0-2 .897-2 2v16c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2V4c0-1.103-.897-2-2-2H6zm0 18V4h12l.002 16H6z"/>
+                                </svg>
+                            </button>
+                            <button class="device-btn" data-device="mobile" title="Mobile">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                                    <path d="M17 2H7c-1.103 0-2 .897-2 2v16c0 1.103.897 2 2 2h10c1.103 0 2-.897 2-2V4c0-1.103-.897-2-2-2zM7 16.999V5h10l.002 11.999H7z"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <button class="btn btn-secondary" id="refreshPreviewBtn">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M10 11H7.101l.001-.009a4.956 4.956 0 0 1 .752-1.787 5.054 5.054 0 0 1 2.2-1.811c.302-.128.617-.226.938-.291a5.078 5.078 0 0 1 2.018 0 4.978 4.978 0 0 1 2.525 1.361l1.416-1.412a7.036 7.036 0 0 0-2.224-1.501 6.921 6.921 0 0 0-1.315-.408 7.079 7.079 0 0 0-2.819 0 6.94 6.94 0 0 0-1.316.409 7.04 7.04 0 0 0-3.08 2.534 6.978 6.978 0 0 0-1.054 2.505c-.028.135-.043.273-.063.41H2l4 4 4-4zm4 2h2.899l-.001.008a4.976 4.976 0 0 1-2.103 3.138 4.943 4.943 0 0 1-1.787.752 5.073 5.073 0 0 1-2.017 0 4.956 4.956 0 0 1-1.787-.752 5.072 5.072 0 0 1-.74-.61L7.05 16.95a7.032 7.032 0 0 0 2.225 1.5c.424.18.867.317 1.315.408a7.07 7.07 0 0 0 2.818 0 7.031 7.031 0 0 0 4.395-2.945 6.974 6.974 0 0 0 1.053-2.503c.027-.135.043-.273.063-.41H22l-4-4-4 4z"/>
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="preview-frame-container">
+                        <iframe id="previewFrame" class="preview-frame"></iframe>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view" id="settingsView">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <h3>Project Settings</h3>
+                        <div class="setting-group">
+                            <label for="bookTitle">Book Title</label>
+                            <input type="text" id="bookTitle" placeholder="My Interactive Book">
+                        </div>
+                        <div class="setting-group">
+                            <label for="bookAuthor">Author</label>
+                            <input type="text" id="bookAuthor" placeholder="Author Name">
+                        </div>
+                        <div class="setting-group">
+                            <label for="bookDescription">Description</label>
+                            <textarea id="bookDescription" placeholder="Book description..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Theme</h3>
+                        <div class="theme-presets">
+                            <button class="theme-preset active" data-theme="light">
+                                <span class="theme-preview theme-light"></span>
+                                Light
+                            </button>
+                            <button class="theme-preset" data-theme="dark">
+                                <span class="theme-preview theme-dark"></span>
+                                Dark
+                            </button>
+                            <button class="theme-preset" data-theme="sepia">
+                                <span class="theme-preview theme-sepia"></span>
+                                Sepia
+                            </button>
+                            <button class="theme-preset" data-theme="custom">
+                                <span class="theme-preview theme-custom"></span>
+                                Custom
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Typography</h3>
+                        <div class="setting-group">
+                            <label for="headingFont">Heading Font</label>
+                            <select id="headingFont">
+                                <option value="Inter">Inter</option>
+                                <option value="Merriweather">Merriweather</option>
+                                <option value="Playfair Display">Playfair Display</option>
+                                <option value="Roboto">Roboto</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="bodyFont">Body Font</label>
+                            <select id="bodyFont">
+                                <option value="Inter">Inter</option>
+                                <option value="Merriweather">Merriweather</option>
+                                <option value="Lora">Lora</option>
+                                <option value="Roboto">Roboto</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="codeFont">Code Font</label>
+                            <select id="codeFont">
+                                <option value="Fira Code">Fira Code</option>
+                                <option value="JetBrains Mono">JetBrains Mono</option>
+                                <option value="Source Code Pro">Source Code Pro</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="baseFontSize">Base Font Size</label>
+                            <input type="range" id="baseFontSize" min="14" max="22" value="18">
+                            <span id="fontSizeValue">18px</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Colors</h3>
+                        <div class="color-settings">
+                            <div class="setting-group">
+                                <label for="primaryColor">Primary Color</label>
+                                <input type="color" id="primaryColor" value="#2563eb">
+                            </div>
+                            <div class="setting-group">
+                                <label for="accentColor">Accent Color</label>
+                                <input type="color" id="accentColor" value="#7c3aed">
+                            </div>
+                            <div class="setting-group">
+                                <label for="bgColor">Background Color</label>
+                                <input type="color" id="bgColor" value="#ffffff">
+                            </div>
+                            <div class="setting-group">
+                                <label for="textColor">Text Color</label>
+                                <input type="color" id="textColor" value="#1f2937">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Layout</h3>
+                        <div class="setting-group">
+                            <label for="contentWidth">Content Column Width</label>
+                            <input type="range" id="contentWidth" min="30" max="60" value="45">
+                            <span id="contentWidthValue">45%</span>
+                        </div>
+                        <div class="setting-group">
+                            <label for="mediaWidth">Media Column Width</label>
+                            <input type="range" id="mediaWidth" min="30" max="60" value="45">
+                            <span id="mediaWidthValue">45%</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Export Settings</h3>
+                        <div class="setting-group">
+                            <label>Export Format</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="exportFormat" value="single" checked>
+                                    Single HTML File (all assets inlined)
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="exportFormat" value="multi">
+                                    Multi-file Bundle (HTML + assets folder)
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="exportFormat" value="zip">
+                                    Zipped Package
+                                </label>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeKatex" checked>
+                                Include KaTeX (math equations)
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includeHighlight" checked>
+                                Include Highlight.js (code highlighting)
+                            </label>
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="includePrintStyles" checked>
+                                Include print stylesheet
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Custom CSS</h3>
+                        <div class="setting-group">
+                            <textarea id="customCss" class="code-textarea" placeholder="/* Add custom CSS overrides here */"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Block Type Selector Modal -->
+        <div class="modal" id="blockTypeModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Content Block</h3>
+                    <button class="modal-close" id="closeBlockModal">&times;</button>
+                </div>
+                <div class="block-type-grid">
+                    <button class="block-type-btn" data-type="heading">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M18 20V4h-3v6H9V4H6v16h3v-7h6v7z"/>
+                        </svg>
+                        <span>Heading</span>
+                    </button>
+                    <button class="block-type-btn" data-type="paragraph">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M4 6h16v2H4zm0 4h16v2H4zm0 4h16v2H4zm0 4h10v2H4z"/>
+                        </svg>
+                        <span>Paragraph</span>
+                    </button>
+                    <button class="block-type-btn" data-type="list">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M4 6h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8z"/>
+                        </svg>
+                        <span>List</span>
+                    </button>
+                    <button class="block-type-btn" data-type="quote">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M6.5 10c-.223 0-.437.034-.65.065.069-.232.14-.468.254-.68.114-.308.292-.575.469-.844.148-.291.409-.488.601-.737.201-.242.475-.403.692-.604.213-.21.492-.315.714-.463.232-.133.434-.28.65-.35l.539-.222.474-.197-.485-1.938-.597.144c-.191.048-.424.104-.689.171-.271.05-.56.187-.882.312-.318.142-.686.238-1.028.466-.344.218-.741.4-1.091.692-.339.301-.748.562-1.05.945-.33.358-.656.734-.909 1.162-.293.408-.492.856-.702 1.299-.19.443-.343.896-.468 1.336-.237.882-.343 1.72-.384 2.437-.034.718-.014 1.315.028 1.747.015.204.043.402.063.539l.025.168.026-.006A4.5 4.5 0 1 0 6.5 10zm11 0c-.223 0-.437.034-.65.065.069-.232.14-.468.254-.68.114-.308.292-.575.469-.844.148-.291.409-.488.601-.737.201-.242.475-.403.692-.604.213-.21.492-.315.714-.463.232-.133.434-.28.65-.35l.539-.222.474-.197-.485-1.938-.597.144c-.191.048-.424.104-.689.171-.271.05-.56.187-.882.312-.317.143-.686.238-1.028.467-.344.218-.741.4-1.091.692-.339.301-.748.562-1.05.944-.33.358-.656.734-.909 1.162-.293.408-.492.856-.702 1.299-.19.443-.343.896-.468 1.336-.237.882-.343 1.72-.384 2.437-.034.718-.014 1.315.028 1.747.015.204.043.402.063.539l.025.168.026-.006A4.5 4.5 0 1 0 17.5 10z"/>
+                        </svg>
+                        <span>Quote</span>
+                    </button>
+                    <button class="block-type-btn" data-type="code">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M8.293 6.293 2.586 12l5.707 5.707 1.414-1.414L5.414 12l4.293-4.293zm7.414 11.414L21.414 12l-5.707-5.707-1.414 1.414L18.586 12l-4.293 4.293z"/>
+                        </svg>
+                        <span>Code</span>
+                    </button>
+                    <button class="block-type-btn" data-type="equation">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="m7 2 5 5-2 2 4 4 4-4-2-2 5-5H7zm8.5 15h-3.7l-1.2-2h-4l2.6 4-2.6 4h4l1.2-2h3.7l-1.6-2z"/>
+                        </svg>
+                        <span>Equation</span>
+                    </button>
+                    <button class="block-type-btn" data-type="divider">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M4 11h16v2H4z"/>
+                        </svg>
+                        <span>Divider</span>
+                    </button>
+                    <button class="block-type-btn" data-type="collapsible">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M4 6h16v2H4zm4 5h12v2H8zm0 5h12v2H8z"/>
+                        </svg>
+                        <span>Collapsible</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- HTML Snippet Editor Modal -->
+        <div class="modal" id="snippetEditorModal">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h3>HTML Snippet Editor</h3>
+                    <button class="modal-close" id="closeSnippetModal">&times;</button>
+                </div>
+                <div class="snippet-editor-container">
+                    <div class="snippet-tabs">
+                        <button class="snippet-tab active" data-tab="html">HTML</button>
+                        <button class="snippet-tab" data-tab="css">CSS</button>
+                        <button class="snippet-tab" data-tab="js">JavaScript</button>
+                    </div>
+                    <div class="snippet-editors">
+                        <textarea id="snippetHtml" class="snippet-editor active" placeholder="<div class='my-widget'>...</div>"></textarea>
+                        <textarea id="snippetCss" class="snippet-editor" placeholder=".my-widget { ... }"></textarea>
+                        <textarea id="snippetJs" class="snippet-editor" placeholder="// JavaScript code..."></textarea>
+                    </div>
+                    <div class="snippet-preview">
+                        <h4>Preview</h4>
+                        <iframe id="snippetPreviewFrame"></iframe>
+                    </div>
+                    <div class="snippet-actions">
+                        <input type="text" id="snippetName" placeholder="Snippet name">
+                        <button class="btn btn-primary" id="saveSnippetBtn">Save Snippet</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Modal -->
+        <div class="modal" id="exportModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Export Book</h3>
+                    <button class="modal-close" id="closeExportModal">&times;</button>
+                </div>
+                <div class="export-options">
+                    <div class="export-progress" id="exportProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="exportProgressFill"></div>
+                        </div>
+                        <p id="exportStatus">Preparing export...</p>
+                    </div>
+                    <div class="export-complete" id="exportComplete" style="display: none;">
+                        <svg viewBox="0 0 24 24" width="48" height="48" fill="#10b981">
+                            <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm-1.999 14.413-3.713-3.705L7.7 11.292l2.299 2.295 5.294-5.294 1.414 1.414-6.706 6.706z"/>
+                        </svg>
+                        <p>Export complete!</p>
+                        <button class="btn btn-primary" id="openExportedFile">Open File Location</button>
+                    </div>
+                    <button class="btn btn-primary btn-large" id="startExportBtn">Start Export</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div class="toast-container" id="toastContainer"></div>
+    </div>
+
+    <script src="utils/helpers.js"></script>
+    <script src="utils/storage.js"></script>
+    <script src="components/block-editor.js"></script>
+    <script src="components/media-manager.js"></script>
+    <script src="components/storyboard.js"></script>
+    <script src="components/preview.js"></script>
+    <script src="components/exporter.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

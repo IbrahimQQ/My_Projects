@@ -1,0 +1,122 @@
+{
+  "version": "1.0.0",
+  "meta": {
+    "title": "Introduction to Probability",
+    "author": "Sample Author",
+    "description": "An interactive introduction to probability concepts, inspired by Seeing Theory.",
+    "created": "2024-01-01T00:00:00.000Z",
+    "modified": "2024-01-01T00:00:00.000Z"
+  },
+  "settings": {
+    "theme": "light",
+    "typography": {
+      "headingFont": "Merriweather",
+      "bodyFont": "Inter",
+      "codeFont": "Fira Code",
+      "baseFontSize": 18
+    },
+    "colors": {
+      "primary": "#2563eb",
+      "accent": "#7c3aed",
+      "background": "#ffffff",
+      "text": "#1f2937"
+    },
+    "layout": {
+      "contentWidth": 45,
+      "mediaWidth": 45
+    },
+    "export": {
+      "format": "single",
+      "includeKatex": true,
+      "includeHighlight": true,
+      "includePrintStyles": true
+    },
+    "customCss": ""
+  },
+  "chapters": [
+    {
+      "id": "ch_intro",
+      "title": "Introduction",
+      "blocks": [
+        {
+          "id": "blk_1",
+          "type": "heading",
+          "level": 1,
+          "content": "Welcome to Probability",
+          "trigger": { "type": "onEnter", "enabled": false },
+          "linkedMedia": []
+        },
+        {
+          "id": "blk_2",
+          "type": "paragraph",
+          "content": "Probability theory is the branch of mathematics concerned with probability. Although there are several different probability interpretations, probability theory treats the concept in a rigorous mathematical manner by expressing it through a set of axioms.",
+          "trigger": { "type": "onEnter", "enabled": true },
+          "linkedMedia": ["asset_1"]
+        },
+        {
+          "id": "blk_3",
+          "type": "paragraph",
+          "content": "Typically these axioms formalise probability in terms of a probability space, which assigns a measure taking values between 0 and 1, termed the probability measure, to a set of outcomes called the sample space.",
+          "trigger": { "type": "onEnter", "enabled": true },
+          "linkedMedia": ["asset_2"]
+        }
+      ]
+    },
+    {
+      "id": "ch_basic",
+      "title": "Basic Probability",
+      "blocks": [
+        {
+          "id": "blk_4",
+          "type": "heading",
+          "level": 2,
+          "content": "Chance Events",
+          "trigger": { "type": "onEnter", "enabled": false },
+          "linkedMedia": []
+        },
+        {
+          "id": "blk_5",
+          "type": "paragraph",
+          "content": "Randomness is all around us. Probability theory is the mathematical framework that allows us to analyze chance events in a logically sound manner. The probability of an event is a number indicating how likely that event will occur. This number is always between 0 and 1, where 0 indicates impossibility and 1 indicates certainty.",
+          "trigger": { "type": "onEnter", "enabled": true },
+          "linkedMedia": []
+        },
+        {
+          "id": "blk_6",
+          "type": "equation",
+          "latex": "P(A) = \\frac{\\text{Number of favorable outcomes}}{\\text{Total number of outcomes}}",
+          "trigger": { "type": "onCenter", "enabled": true },
+          "linkedMedia": []
+        },
+        {
+          "id": "blk_7",
+          "type": "quote",
+          "content": "The theory of probability is at bottom nothing but common sense reduced to calculus.",
+          "citation": "Pierre-Simon Laplace",
+          "trigger": { "type": "onEnter", "enabled": false },
+          "linkedMedia": []
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "id": "asset_1",
+      "name": "probability-visualization.svg",
+      "type": "svgs",
+      "originalPath": "",
+      "relativePath": "assets/svgs/probability-visualization.svg",
+      "size": 0,
+      "added": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "asset_2",
+      "name": "sample-space.svg",
+      "type": "svgs",
+      "originalPath": "",
+      "relativePath": "assets/svgs/sample-space.svg",
+      "size": 0,
+      "added": "2024-01-01T00:00:00.000Z"
+    }
+  ]
+}
