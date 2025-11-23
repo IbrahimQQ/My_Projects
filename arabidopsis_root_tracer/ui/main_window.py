@@ -1192,21 +1192,18 @@ class MainWindow(QMainWindow):
 
         def on_training_finished(save_path):
             btn_train.setEnabled(True)
-            log_text.append(f"\nTraining complete! Model saved to: {save_path}")
+            log_text.append(f"\n*** Training complete! ***")
+            log_text.append(f"Model saved to: {save_path}")
+            log_text.append("You can now use 'Auto-Detect Roots' to detect roots automatically.")
             progress.setValue(100)
 
             # Load the trained model
             self._load_ml_model(save_path)
-            QMessageBox.information(
-                dialog, "Training Complete",
-                f"Model trained and saved to:\n{save_path}\n\n"
-                "You can now use 'Auto-Detect Roots' to detect roots automatically."
-            )
 
         def on_training_error(error):
             btn_train.setEnabled(True)
-            log_text.append(f"\nError: {error}")
-            QMessageBox.critical(dialog, "Training Error", str(error))
+            log_text.append(f"\n*** ERROR ***")
+            log_text.append(f"{error}")
 
         btn_train.clicked.connect(start_training)
 
