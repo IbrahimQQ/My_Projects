@@ -1171,11 +1171,12 @@ class MainWindow(QMainWindow):
             worker.moveToThread(training_thread)
 
             training_thread.started.connect(worker.run)
-            worker.progress_signal.connect(lambda m: on_training_progress(m))
-            worker.finished_signal.connect(lambda p: on_training_finished(p))
-            worker.error_signal.connect(lambda e: on_training_error(e))
-            worker.finished_signal.connect(training_thread.quit)
-            worker.error_signal.connect(training_thread.quit)
+            # Use QueuedConnection to ensure slots run on main thread
+            worker.progress_signal.connect(on_training_progress, Qt.ConnectionType.QueuedConnection)
+            worker.finished_signal.connect(on_training_finished, Qt.ConnectionType.QueuedConnection)
+            worker.error_signal.connect(on_training_error, Qt.ConnectionType.QueuedConnection)
+            worker.finished_signal.connect(training_thread.quit, Qt.ConnectionType.QueuedConnection)
+            worker.error_signal.connect(training_thread.quit, Qt.ConnectionType.QueuedConnection)
 
             training_thread.start()
 
