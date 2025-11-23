@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <title>Student Registration - Reader & Browser</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        .registration-logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .registration-logo svg {
+            width: 80px;
+            height: 80px;
+            fill: var(--accent-color);
+        }
+        .grade-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .grade-option {
+            padding: 10px;
+            text-align: center;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .grade-option:hover {
+            border-color: var(--accent-color);
+            background-color: var(--accent-light);
+        }
+        .grade-option.selected {
+            border-color: var(--accent-color);
+            background-color: var(--accent-light);
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+        .custom-grade {
+            margin-top: 12px;
+        }
+        .error-message {
+            color: var(--danger-color);
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+        .error-message.show {
+            display: block;
+        }
+        .form-input.error {
+            border-color: var(--danger-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="registration-container">
+        <div class="registration-card">
+            <div class="registration-logo">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+                </svg>
+            </div>
+            <h1 class="registration-title">Welcome, Student!</h1>
+            <p class="registration-subtitle">Let's set up your profile to get started</p>
+
+            <form id="registrationForm">
+                <div class="form-group">
+                    <label class="form-label" for="studentName">Your Full Name</label>
+                    <input
+                        type="text"
+                        id="studentName"
+                        class="form-input"
+                        placeholder="Enter your full name"
+                        autocomplete="off"
+                        required
+                    >
+                    <div class="error-message" id="nameError">Please enter your name</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Select Your Grade/Class</label>
+                    <div class="grade-options" id="gradeOptions">
+                        <div class="grade-option" data-grade="Grade 1">Grade 1</div>
+                        <div class="grade-option" data-grade="Grade 2">Grade 2</div>
+                        <div class="grade-option" data-grade="Grade 3">Grade 3</div>
+                        <div class="grade-option" data-grade="Grade 4">Grade 4</div>
+                        <div class="grade-option" data-grade="Grade 5">Grade 5</div>
+                        <div class="grade-option" data-grade="Grade 6">Grade 6</div>
+                        <div class="grade-option" data-grade="Grade 7">Grade 7</div>
+                        <div class="grade-option" data-grade="Grade 8">Grade 8</div>
+                        <div class="grade-option" data-grade="Grade 9">Grade 9</div>
+                        <div class="grade-option" data-grade="Grade 10">Grade 10</div>
+                        <div class="grade-option" data-grade="Grade 11">Grade 11</div>
+                        <div class="grade-option" data-grade="Grade 12">Grade 12</div>
+                    </div>
+                    <div class="custom-grade">
+                        <input
+                            type="text"
+                            id="customGrade"
+                            class="form-input"
+                            placeholder="Or enter custom class/grade"
+                        >
+                    </div>
+                    <div class="error-message" id="gradeError">Please select or enter your grade/class</div>
+                </div>
+
+                <div class="form-group" style="margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                        Get Started
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let selectedGrade = '';
+
+        // Grade option selection
+        document.querySelectorAll('.grade-option').forEach(option => {
+            option.addEventListener('click', () => {
+                document.querySelectorAll('.grade-option').forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+                selectedGrade = option.dataset.grade;
+                document.getElementById('customGrade').value = '';
+                document.getElementById('gradeError').classList.remove('show');
+            });
+        });
+
+        // Custom grade input
+        document.getElementById('customGrade').addEventListener('input', (e) => {
+            if (e.target.value) {
+                document.querySelectorAll('.grade-option').forEach(o => o.classList.remove('selected'));
+                selectedGrade = e.target.value;
+                document.getElementById('gradeError').classList.remove('show');
+            }
+        });
+
+        // Form submission
+        document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const name = document.getElementById('studentName').value.trim();
+            const customGrade = document.getElementById('customGrade').value.trim();
+            const grade = customGrade || selectedGrade;
+
+            let hasError = false;
+
+            // Validate name
+            if (!name) {
+                document.getElementById('studentName').classList.add('error');
+                document.getElementById('nameError').classList.add('show');
+                hasError = true;
+            } else {
+                document.getElementById('studentName').classList.remove('error');
+                document.getElementById('nameError').classList.remove('show');
+            }
+
+            // Validate grade
+            if (!grade) {
+                document.getElementById('gradeError').classList.add('show');
+                hasError = true;
+            } else {
+                document.getElementById('gradeError').classList.remove('show');
+            }
+
+            if (hasError) return;
+
+            // Save profile
+            const profile = {
+                name: name,
+                class: grade,
+                createdAt: new Date().toISOString()
+            };
+
+            try {
+                await window.electronAPI.user.register(profile);
+                await window.electronAPI.navigate.toMain();
+            } catch (error) {
+                console.error('Registration error:', error);
+                alert('An error occurred during registration. Please try again.');
+            }
+        });
+
+        // Clear error on input
+        document.getElementById('studentName').addEventListener('input', () => {
+            document.getElementById('studentName').classList.remove('error');
+            document.getElementById('nameError').classList.remove('show');
+        });
+    </script>
+</body>
+</html>

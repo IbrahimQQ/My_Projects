@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <title>Document Reader</title>
+    <link rel="stylesheet" href="../styles/main.css">
+    <style>
+        body {
+            overflow: hidden;
+        }
+
+        .reader-app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Reader Header */
+        .reader-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .reader-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .reader-header-center {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+        }
+
+        .reader-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .document-title {
+            font-weight: 600;
+            font-size: 14px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            background-color: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+        }
+
+        .breadcrumb-item:hover {
+            color: var(--accent-color);
+        }
+
+        .breadcrumb-separator {
+            color: var(--text-muted);
+        }
+
+        /* Main Content */
+        .reader-main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar/TOC */
+        .reader-sidebar {
+            width: 280px;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+        }
+
+        .reader-sidebar.collapsed {
+            width: 0;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-title {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .toc-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .toc-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .toc-item:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .toc-item.active {
+            background-color: var(--accent-light);
+            color: var(--accent-color);
+        }
+
+        .toc-item.level-1 { padding-left: 12px; }
+        .toc-item.level-2 { padding-left: 28px; font-size: 12px; }
+        .toc-item.level-3 { padding-left: 44px; font-size: 11px; }
+
+        /* Content Area */
+        .reader-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .reader-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background-color: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toolbar-divider {
+            width: 1px;
+            height: 20px;
+            background-color: var(--border-color);
+            margin: 0 8px;
+        }
+
+        .font-size-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .font-size-display {
+            min-width: 40px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        /* Reading Area */
+        .reading-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+            background-color: var(--bg-primary);
+        }
+
+        .reading-area.book-view {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .reading-area.continuous {
+            max-width: 100%;
+        }
+
+        .reading-area.page-view {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow: hidden;
+        }
+
+        .document-content {
+            line-height: 1.8;
+            font-size: var(--reader-font-size, 16px);
+        }
+
+        .document-content h1,
+        .document-content h2,
+        .document-content h3 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+        }
+
+        .document-content p {
+            margin-bottom: 1em;
+        }
+
+        .document-content img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* PDF Viewer */
+        .pdf-viewer {
+            width: 100%;
+            height: 100%;
+        }
+
+        .pdf-page {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        /* Progress Bar */
+        .reading-progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background-color: var(--bg-tertiary);
+            z-index: 100;
+        }
+
+        .reading-progress-bar {
+            height: 100%;
+            background-color: var(--accent-color);
+            transition: width 0.2s ease;
+        }
+
+        /* Navigation Footer */
+        .reader-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background-color: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .page-info {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Search */
+        .search-bar {
+            display: none;
+            position: absolute;
+            top: 60px;
+            right: 16px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            padding: 12px;
+            z-index: 200;
+        }
+
+        .search-bar.show {
+            display: block;
+        }
+
+        .search-input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-results {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        /* Highlight */
+        .highlight {
+            background-color: yellow;
+            cursor: pointer;
+        }
+
+        .highlight.selected {
+            background-color: #90EE90;
+        }
+
+        /* Loading */
+        .loading-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        /* Text selection popup */
+        .selection-popup {
+            position: absolute;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow-medium);
+            padding: 8px;
+            display: none;
+            z-index: 300;
+        }
+
+        .selection-popup.show {
+            display: flex;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="reader-app" id="readerApp">
+        <!-- Reading Progress -->
+        <div class="reading-progress">
+            <div class="reading-progress-bar" id="progressBar" style="width: 0%"></div>
+        </div>
+
+        <!-- Header -->
+        <div class="reader-header">
+            <div class="reader-header-left">
+                <button class="btn-icon" id="backBtn" title="Back to Browser">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="toggleSidebar" title="Toggle Sidebar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                    </svg>
+                </button>
+                <span class="document-title" id="documentTitle">Document</span>
+            </div>
+            <div class="reader-header-center">
+                <!-- Breadcrumb will be inserted here -->
+            </div>
+            <div class="reader-header-right">
+                <button class="btn-icon" id="searchBtn" title="Search">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="dictionaryBtn" title="Dictionary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                    </svg>
+                </button>
+                <button class="btn-icon" id="themeToggle" title="Toggle Theme">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Breadcrumb -->
+        <div class="breadcrumb" id="breadcrumb">
+            <span class="breadcrumb-item" onclick="navigateTo('home')">Home</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item" id="subjectBreadcrumb">Subject</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item active" id="topicBreadcrumb">Topic</span>
+        </div>
+
+        <!-- Main Content -->
+        <div class="reader-main">
+            <!-- Sidebar -->
+            <div class="reader-sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">Table of Contents</span>
+                    <button class="btn-icon" onclick="toggleSidebar()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="toc-container" id="tocContainer">
+                    <!-- TOC items will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="reader-content">
+                <div class="reader-toolbar">
+                    <div class="toolbar-group">
+                        <select id="viewMode" class="form-input" style="width: auto;">
+                            <option value="book">Book View</option>
+                            <option value="continuous">Continuous</option>
+                            <option value="page">Single Page</option>
+                        </select>
+                    </div>
+
+                    <div class="toolbar-group">
+                        <div class="font-size-control">
+                            <button class="btn-icon" id="fontDecrease" title="Decrease Font">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13H5v-2h14v2z"/>
+                                </svg>
+                            </button>
+                            <span class="font-size-display" id="fontSizeDisplay">16px</span>
+                            <button class="btn-icon" id="fontIncrease" title="Increase Font">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="toolbar-divider"></div>
+
+                        <button class="btn-icon" id="zoomOut" title="Zoom Out">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/>
+                            </svg>
+                        </button>
+                        <span id="zoomDisplay" style="font-size: 12px; min-width: 40px; text-align: center;">100%</span>
+                        <button class="btn-icon" id="zoomIn" title="Zoom In">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-2h-1v-1.5H7.5V9H9V7.5h1V9h1.5v1H10z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="reading-area book-view" id="readingArea">
+                    <div class="document-content" id="documentContent">
+                        <div class="loading-container">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Navigation -->
+        <div class="reader-footer">
+            <div class="nav-buttons">
+                <button class="btn btn-secondary" id="prevBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                    </svg>
+                    Previous
+                </button>
+            </div>
+            <div class="page-info" id="pageInfo">
+                Page 1 of 1
+            </div>
+            <div class="nav-buttons">
+                <button class="btn btn-secondary" id="nextBtn">
+                    Next
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar" id="searchBar">
+            <div class="search-input-wrapper">
+                <input type="text" id="searchInput" placeholder="Search in document..." class="form-input">
+                <button class="btn btn-primary" id="searchSubmit">Find</button>
+            </div>
+            <div class="search-results" id="searchResults"></div>
+        </div>
+
+        <!-- Text Selection Popup -->
+        <div class="selection-popup" id="selectionPopup">
+            <button class="btn-icon" title="Highlight" onclick="highlightSelection()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#FFC107">
+                    <path d="M12 3C6.5 3 2 6.58 2 11c0 2.05.77 3.94 2.04 5.44L2 22l5.56-2.04C8.62 20.62 10.26 21 12 21c5.5 0 10-3.58 10-8s-4.5-8-10-8z"/>
+                </svg>
+            </button>
+            <button class="btn-icon" title="Look up" onclick="lookupSelection()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                </svg>
+            </button>
+            <button class="btn-icon" title="Copy" onclick="copySelection()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Reader State
+        let currentDocument = null;
+        let currentFontSize = 16;
+        let currentZoom = 100;
+        let isDarkMode = false;
+        let currentPage = 1;
+        let totalPages = 1;
+        let toc = [];
+        let highlights = [];
+        let readStartTime = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            loadDocument();
+            startReadingSession();
+        });
+
+        function setupEventListeners() {
+            // Navigation
+            document.getElementById('backBtn').addEventListener('click', goBack);
+            document.getElementById('toggleSidebar').addEventListener('click', toggleSidebar);
+            document.getElementById('prevBtn').addEventListener('click', goToPrevious);
+            document.getElementById('nextBtn').addEventListener('click', goToNext);
+
+            // Font size
+            document.getElementById('fontDecrease').addEventListener('click', () => changeFontSize(-2));
+            document.getElementById('fontIncrease').addEventListener('click', () => changeFontSize(2));
+
+            // Zoom
+            document.getElementById('zoomOut').addEventListener('click', () => changeZoom(-10));
+            document.getElementById('zoomIn').addEventListener('click', () => changeZoom(10));
+
+            // View mode
+            document.getElementById('viewMode').addEventListener('change', changeViewMode);
+
+            // Search
+            document.getElementById('searchBtn').addEventListener('click', toggleSearch);
+            document.getElementById('searchSubmit').addEventListener('click', searchInDocument);
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') searchInDocument();
+            });
+
+            // Theme toggle
+            document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+            // Dictionary
+            document.getElementById('dictionaryBtn').addEventListener('click', () => {
+                window.electronAPI.tools.openDictionary();
+            });
+
+            // Reading progress
+            document.getElementById('readingArea').addEventListener('scroll', updateProgress);
+
+            // Text selection
+            document.addEventListener('mouseup', handleTextSelection);
+            document.addEventListener('click', hideSelectionPopup);
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', handleKeyboard);
+        }
+
+        function handleKeyboard(e) {
+            if (e.key === 'ArrowLeft') goToPrevious();
+            if (e.key === 'ArrowRight') goToNext();
+            if (e.key === 'Escape') {
+                document.getElementById('searchBar').classList.remove('show');
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                toggleSearch();
+            }
+        }
+
+        async function loadDocument() {
+            // Get document path from URL params or load default
+            const params = new URLSearchParams(window.location.search);
+            const filePath = params.get('file');
+
+            if (filePath) {
+                try {
+                    const result = await window.electronAPI.file.readDocument(filePath);
+                    if (result.success) {
+                        currentDocument = result;
+                        displayDocument(result);
+                    } else {
+                        showError('Failed to load document');
+                    }
+                } catch (error) {
+                    showError('Error loading document');
+                }
+            } else {
+                // Load sample content
+                document.getElementById('documentContent').innerHTML = `
+                    <h1>Welcome to the Reader</h1>
+                    <p>Open a document to start reading. Supported formats:</p>
+                    <ul>
+                        <li>HTML documents</li>
+                        <li>PDF files</li>
+                        <li>EPUB books</li>
+                        <li>Plain text files</li>
+                    </ul>
+                `;
+            }
+        }
+
+        function displayDocument(doc) {
+            const content = document.getElementById('documentContent');
+
+            switch (doc.type) {
+                case 'html':
+                case 'htm':
+                    content.innerHTML = doc.data;
+                    buildTOC();
+                    break;
+                case 'txt':
+                    content.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${escapeHtml(doc.data)}</pre>`;
+                    break;
+                case 'pdf':
+                    displayPDF(doc.data);
+                    break;
+                default:
+                    content.innerHTML = doc.data;
+            }
+
+            updatePageInfo();
+        }
+
+        async function displayPDF(base64Data) {
+            const content = document.getElementById('documentContent');
+            // For PDF, we'll use an embedded viewer
+            content.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <p>PDF viewing is available. The document has been loaded.</p>
+                    <embed src="data:application/pdf;base64,${base64Data}" type="application/pdf" width="100%" height="600px" />
+                </div>
+            `;
+        }
+
+        function buildTOC() {
+            const content = document.getElementById('documentContent');
+            const headings = content.querySelectorAll('h1, h2, h3');
+            const tocContainer = document.getElementById('tocContainer');
+
+            toc = [];
+            tocContainer.innerHTML = '';
+
+            headings.forEach((heading, index) => {
+                const id = `heading-${index}`;
+                heading.id = id;
+
+                const level = parseInt(heading.tagName[1]);
+                const item = {
+                    id: id,
+                    text: heading.textContent,
+                    level: level
+                };
+                toc.push(item);
+
+                const tocItem = document.createElement('div');
+                tocItem.className = `toc-item level-${level}`;
+                tocItem.textContent = heading.textContent;
+                tocItem.onclick = () => scrollToHeading(id);
+                tocContainer.appendChild(tocItem);
+            });
+
+            if (toc.length === 0) {
+                tocContainer.innerHTML = '<p style="padding: 12px; color: var(--text-muted); font-size: 12px;">No table of contents available</p>';
+            }
+        }
+
+        function scrollToHeading(id) {
+            const heading = document.getElementById(id);
+            if (heading) {
+                heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                updateActiveTOC(id);
+            }
+        }
+
+        function updateActiveTOC(activeId) {
+            document.querySelectorAll('.toc-item').forEach((item, index) => {
+                item.classList.toggle('active', toc[index]?.id === activeId);
+            });
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        }
+
+        function changeFontSize(delta) {
+            currentFontSize = Math.max(12, Math.min(24, currentFontSize + delta));
+            document.documentElement.style.setProperty('--reader-font-size', `${currentFontSize}px`);
+            document.getElementById('fontSizeDisplay').textContent = `${currentFontSize}px`;
+        }
+
+        function changeZoom(delta) {
+            currentZoom = Math.max(50, Math.min(200, currentZoom + delta));
+            document.getElementById('readingArea').style.transform = `scale(${currentZoom / 100})`;
+            document.getElementById('readingArea').style.transformOrigin = 'top center';
+            document.getElementById('zoomDisplay').textContent = `${currentZoom}%`;
+        }
+
+        function changeViewMode() {
+            const mode = document.getElementById('viewMode').value;
+            const readingArea = document.getElementById('readingArea');
+
+            readingArea.classList.remove('book-view', 'continuous', 'page-view');
+            readingArea.classList.add(mode === 'book' ? 'book-view' : mode);
+        }
+
+        function toggleSearch() {
+            const searchBar = document.getElementById('searchBar');
+            searchBar.classList.toggle('show');
+            if (searchBar.classList.contains('show')) {
+                document.getElementById('searchInput').focus();
+            }
+        }
+
+        function searchInDocument() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            const content = document.getElementById('documentContent');
+            const text = content.textContent;
+            const regex = new RegExp(query, 'gi');
+            const matches = text.match(regex);
+
+            document.getElementById('searchResults').textContent =
+                matches ? `Found ${matches.length} matches` : 'No matches found';
+
+            // Highlight matches
+            if (matches) {
+                const html = content.innerHTML;
+                const highlighted = html.replace(regex, '<mark class="search-highlight">$&</mark>');
+                content.innerHTML = highlighted;
+
+                // Scroll to first match
+                const firstMatch = content.querySelector('.search-highlight');
+                if (firstMatch) {
+                    firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
+
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+        }
+
+        function updateProgress() {
+            const readingArea = document.getElementById('readingArea');
+            const scrollTop = readingArea.scrollTop;
+            const scrollHeight = readingArea.scrollHeight - readingArea.clientHeight;
+            const progress = (scrollTop / scrollHeight) * 100;
+
+            document.getElementById('progressBar').style.width = `${Math.min(100, Math.max(0, progress))}%`;
+        }
+
+        function updatePageInfo() {
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+
+        function goToPrevious() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePageInfo();
+                // Scroll to previous section
+            }
+        }
+
+        function goToNext() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePageInfo();
+                // Scroll to next section
+            }
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        function handleTextSelection() {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+
+            if (selectedText) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+
+                const popup = document.getElementById('selectionPopup');
+                popup.style.left = `${rect.left + rect.width / 2 - 50}px`;
+                popup.style.top = `${rect.top - 40}px`;
+                popup.classList.add('show');
+            }
+        }
+
+        function hideSelectionPopup(e) {
+            if (!e.target.closest('.selection-popup') && !window.getSelection().toString().trim()) {
+                document.getElementById('selectionPopup').classList.remove('show');
+            }
+        }
+
+        function highlightSelection() {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.className = 'highlight';
+                range.surroundContents(span);
+                selection.removeAllRanges();
+
+                highlights.push({
+                    text: span.textContent,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            hideSelectionPopup({ target: document.body });
+        }
+
+        function lookupSelection() {
+            const selectedText = window.getSelection().toString().trim();
+            if (selectedText) {
+                window.electronAPI.tools.openDictionary();
+                // The dictionary would need to receive this text
+            }
+            hideSelectionPopup({ target: document.body });
+        }
+
+        function copySelection() {
+            const selectedText = window.getSelection().toString();
+            navigator.clipboard.writeText(selectedText);
+            hideSelectionPopup({ target: document.body });
+        }
+
+        function startReadingSession() {
+            readStartTime = new Date();
+        }
+
+        function endReadingSession() {
+            if (readStartTime) {
+                const duration = Math.floor((new Date() - readStartTime) / 1000);
+                // Log session
+                window.electronAPI.monitoring.logSession({
+                    date: new Date().toLocaleDateString(),
+                    timeStarted: readStartTime.toLocaleTimeString(),
+                    timeEnded: new Date().toLocaleTimeString(),
+                    duration: formatDuration(duration),
+                    documentTitle: document.getElementById('documentTitle').textContent,
+                    subject: document.getElementById('subjectBreadcrumb').textContent,
+                    topic: document.getElementById('topicBreadcrumb').textContent,
+                    activityType: 'reading'
+                });
+            }
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showError(message) {
+            document.getElementById('documentContent').innerHTML = `
+                <div style="text-align: center; padding: 40px; color: var(--danger-color);">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" style="margin-bottom: 16px;">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Clean up on unload
+        window.addEventListener('beforeunload', endReadingSession);
+    </script>
+</body>
+</html>

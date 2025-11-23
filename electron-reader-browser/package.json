@@ -1,0 +1,59 @@
+{
+  "name": "student-reader-browser",
+  "version": "1.0.0",
+  "description": "Educational Reader and Browser Application for Students",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "keywords": [
+    "electron",
+    "education",
+    "reader",
+    "browser",
+    "student"
+  ],
+  "author": "Student Reader Browser Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "pdf-lib": "^1.17.1",
+    "epubjs": "^0.3.93",
+    "csv-writer": "^1.6.0",
+    "jsdom": "^23.0.1"
+  },
+  "build": {
+    "appId": "com.education.studentreaderbrowser",
+    "productName": "Student Reader Browser",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "documents/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icons/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icons/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icons/icon.png"
+    }
+  }
+}
