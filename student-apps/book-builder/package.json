@@ -1,0 +1,13 @@
+{
+  "name": "interactive-book-builder",
+  "version": "1.0.0",
+  "description": "No-Code Interactive HTML Book Builder - Create books like Seeing Theory without coding",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve . -p 3000",
+    "dev": "npx serve . -p 3000 --cors"
+  },
+  "keywords": ["book-builder", "interactive", "html", "education", "seeing-theory"],
+  "author": "",
+  "license": "MIT"
+}

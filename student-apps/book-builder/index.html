@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Book Builder</title>
+  <link rel="stylesheet" href="src/css/main.css">
+  <link rel="stylesheet" href="src/css/editor.css">
+  <link rel="stylesheet" href="src/css/preview.css">
+  <!-- Bundled fonts for offline use -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Fira+Code&display=swap');
+  </style>
+  <!-- KaTeX for math equations -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <!-- Highlight.js for code -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Top Toolbar -->
+    <header class="toolbar">
+      <div class="toolbar-left">
+        <div class="logo">
+          <span class="logo-icon">📚</span>
+          <span class="logo-text">Book Builder</span>
+        </div>
+        <div class="project-name">
+          <input type="text" id="projectName" value="Untitled Book" placeholder="Project Name">
+        </div>
+      </div>
+      <div class="toolbar-center">
+        <div class="view-tabs">
+          <button class="view-tab active" data-view="edit">
+            <span class="tab-icon">✏️</span>
+            <span>Edit</span>
+          </button>
+          <button class="view-tab" data-view="media">
+            <span class="tab-icon">🖼️</span>
+            <span>Media</span>
+          </button>
+          <button class="view-tab" data-view="storyboard">
+            <span class="tab-icon">🎬</span>
+            <span>Storyboard</span>
+          </button>
+          <button class="view-tab" data-view="preview">
+            <span class="tab-icon">👁️</span>
+            <span>Preview</span>
+          </button>
+          <button class="view-tab" data-view="settings">
+            <span class="tab-icon">⚙️</span>
+            <span>Settings</span>
+          </button>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary" id="btnSave" title="Save Project">
+          <span>💾</span> Save
+        </button>
+        <button class="btn btn-secondary" id="btnLoad" title="Load Project">
+          <span>📂</span> Open
+        </button>
+        <button class="btn btn-primary" id="btnExport" title="Export Book">
+          <span>📤</span> Export
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Edit View -->
+      <div class="view-panel active" id="editView">
+        <div class="edit-container">
+          <!-- Chapter Navigation -->
+          <aside class="chapter-sidebar">
+            <div class="sidebar-header">
+              <h3>Chapters</h3>
+              <button class="btn-icon" id="addChapter" title="Add Chapter">+</button>
+            </div>
+            <div class="chapter-list" id="chapterList">
+              <!-- Chapters added dynamically -->
+            </div>
+          </aside>
+
+          <!-- Content Editor -->
+          <div class="content-editor">
+            <div class="editor-toolbar">
+              <div class="block-tools">
+                <button class="tool-btn" data-block="heading1" title="Heading 1">H1</button>
+                <button class="tool-btn" data-block="heading2" title="Heading 2">H2</button>
+                <button class="tool-btn" data-block="heading3" title="Heading 3">H3</button>
+                <button class="tool-btn" data-block="heading4" title="Heading 4">H4</button>
+                <span class="tool-divider"></span>
+                <button class="tool-btn" data-block="paragraph" title="Paragraph">¶</button>
+                <button class="tool-btn" data-block="quote" title="Block Quote">❝</button>
+                <button class="tool-btn" data-block="list-ul" title="Bullet List">•</button>
+                <button class="tool-btn" data-block="list-ol" title="Numbered List">1.</button>
+                <span class="tool-divider"></span>
+                <button class="tool-btn" data-block="code" title="Code Block">&lt;/&gt;</button>
+                <button class="tool-btn" data-block="math" title="Math Equation">∑</button>
+                <button class="tool-btn" data-block="divider" title="Divider">―</button>
+                <button class="tool-btn" data-block="collapsible" title="Collapsible">▼</button>
+              </div>
+              <div class="format-tools">
+                <button class="format-btn" data-format="bold" title="Bold"><b>B</b></button>
+                <button class="format-btn" data-format="italic" title="Italic"><i>I</i></button>
+                <button class="format-btn" data-format="code" title="Inline Code"><code>{ }</code></button>
+                <button class="format-btn" data-format="link" title="Link">🔗</button>
+              </div>
+            </div>
+            <div class="editor-canvas" id="editorCanvas">
+              <!-- Content blocks added here -->
+              <div class="empty-state" id="emptyState">
+                <div class="empty-icon">📝</div>
+                <h3>Start Building Your Book</h3>
+                <p>Click the buttons above to add content blocks, or drag media from the right panel.</p>
+                <button class="btn btn-primary" id="addFirstBlock">Add First Block</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Media Linker Panel -->
+          <aside class="media-linker">
+            <div class="linker-header">
+              <h3>Media Links</h3>
+              <button class="btn-icon" id="addMediaLink" title="Link Media">+</button>
+            </div>
+            <div class="linker-content" id="mediaLinkerContent">
+              <p class="helper-text">Select a content block to link media to it.</p>
+            </div>
+            <div class="quick-media">
+              <h4>Quick Add Media</h4>
+              <div class="media-type-btns">
+                <button class="media-type-btn" data-type="image" title="Image">🖼️</button>
+                <button class="media-type-btn" data-type="svg" title="SVG">📐</button>
+                <button class="media-type-btn" data-type="video" title="Video">🎬</button>
+                <button class="media-type-btn" data-type="html" title="HTML Widget">🧩</button>
+                <button class="media-type-btn" data-type="geogebra" title="GeoGebra">📊</button>
+                <button class="media-type-btn" data-type="lottie" title="Lottie">✨</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- Media Manager View -->
+      <div class="view-panel" id="mediaView">
+        <div class="media-manager">
+          <div class="media-sidebar">
+            <div class="media-folders">
+              <h3>Folders</h3>
+              <ul class="folder-list">
+                <li class="folder-item active" data-folder="all"><span>📁</span> All Assets</li>
+                <li class="folder-item" data-folder="images"><span>🖼️</span> Images</li>
+                <li class="folder-item" data-folder="svgs"><span>📐</span> SVGs</li>
+                <li class="folder-item" data-folder="videos"><span>🎬</span> Videos</li>
+                <li class="folder-item" data-folder="html"><span>🧩</span> HTML Widgets</li>
+                <li class="folder-item" data-folder="geogebra"><span>📊</span> GeoGebra</li>
+                <li class="folder-item" data-folder="lottie"><span>✨</span> Lottie</li>
+              </ul>
+            </div>
+          </div>
+          <div class="media-main">
+            <div class="media-toolbar">
+              <input type="text" class="media-search" placeholder="Search assets..." id="mediaSearch">
+              <button class="btn btn-primary" id="uploadMedia">
+                <span>📤</span> Upload Files
+              </button>
+              <button class="btn btn-secondary" id="createWidget">
+                <span>🧩</span> Create Widget
+              </button>
+            </div>
+            <div class="media-grid" id="mediaGrid">
+              <!-- Media items added dynamically -->
+              <div class="media-drop-zone" id="mediaDropZone">
+                <div class="drop-icon">📥</div>
+                <p>Drag & drop files here or click Upload</p>
+              </div>
+            </div>
+          </div>
+          <div class="media-preview-panel" id="mediaPreviewPanel">
+            <h3>Preview</h3>
+            <div class="preview-content" id="mediaPreviewContent">
+              <p class="helper-text">Select a media item to preview</p>
+            </div>
+            <div class="media-details" id="mediaDetails"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storyboard View -->
+      <div class="view-panel" id="storyboardView">
+        <div class="storyboard-container">
+          <div class="storyboard-header">
+            <h2>Storyboard</h2>
+            <p>Visualize and manage content-media relationships</p>
+          </div>
+          <div class="storyboard-timeline" id="storyboardTimeline">
+            <!-- Timeline items added dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview View -->
+      <div class="view-panel" id="previewView">
+        <div class="preview-container">
+          <div class="preview-controls">
+            <button class="btn btn-secondary" id="previewRefresh">
+              <span>🔄</span> Refresh
+            </button>
+            <select id="previewDevice">
+              <option value="desktop">Desktop</option>
+              <option value="tablet">Tablet</option>
+              <option value="mobile">Mobile</option>
+            </select>
+            <label class="toggle-label">
+              <input type="checkbox" id="previewDarkMode">
+              <span>Dark Mode</span>
+            </label>
+          </div>
+          <div class="preview-frame-container">
+            <iframe id="previewFrame" class="preview-frame"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div class="view-panel" id="settingsView">
+        <div class="settings-container">
+          <div class="settings-section">
+            <h2>Book Settings</h2>
+
+            <div class="setting-group">
+              <h3>General</h3>
+              <div class="setting-row">
+                <label>Book Title</label>
+                <input type="text" id="settingTitle" placeholder="My Interactive Book">
+              </div>
+              <div class="setting-row">
+                <label>Author</label>
+                <input type="text" id="settingAuthor" placeholder="Your Name">
+              </div>
+              <div class="setting-row">
+                <label>Description</label>
+                <textarea id="settingDescription" placeholder="A brief description of your book"></textarea>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>Theme</h3>
+              <div class="theme-presets">
+                <button class="theme-btn active" data-theme="light">☀️ Light</button>
+                <button class="theme-btn" data-theme="dark">🌙 Dark</button>
+                <button class="theme-btn" data-theme="sepia">📜 Sepia</button>
+                <button class="theme-btn" data-theme="custom">🎨 Custom</button>
+              </div>
+              <div class="color-settings">
+                <div class="setting-row">
+                  <label>Background Color</label>
+                  <input type="color" id="settingBgColor" value="#ffffff">
+                </div>
+                <div class="setting-row">
+                  <label>Text Color</label>
+                  <input type="color" id="settingTextColor" value="#333333">
+                </div>
+                <div class="setting-row">
+                  <label>Accent Color</label>
+                  <input type="color" id="settingAccentColor" value="#3498db">
+                </div>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>Typography</h3>
+              <div class="setting-row">
+                <label>Heading Font</label>
+                <select id="settingHeadingFont">
+                  <option value="Inter">Inter</option>
+                  <option value="Merriweather">Merriweather</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="Playfair Display">Playfair Display</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label>Body Font</label>
+                <select id="settingBodyFont">
+                  <option value="Inter">Inter</option>
+                  <option value="Merriweather">Merriweather</option>
+                  <option value="Georgia">Georgia</option>
+                  <option value="system-ui">System Default</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label>Code Font</label>
+                <select id="settingCodeFont">
+                  <option value="Fira Code">Fira Code</option>
+                  <option value="Consolas">Consolas</option>
+                  <option value="Monaco">Monaco</option>
+                  <option value="monospace">System Monospace</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label>Base Font Size</label>
+                <input type="range" id="settingFontSize" min="14" max="22" value="18">
+                <span id="fontSizeValue">18px</span>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>Layout</h3>
+              <div class="setting-row">
+                <label>Content Width</label>
+                <select id="settingContentWidth">
+                  <option value="narrow">Narrow (500px)</option>
+                  <option value="medium" selected>Medium (600px)</option>
+                  <option value="wide">Wide (700px)</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <label>Media Width</label>
+                <select id="settingMediaWidth">
+                  <option value="narrow">Narrow (400px)</option>
+                  <option value="medium" selected>Medium (500px)</option>
+                  <option value="wide">Wide (600px)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="setting-group">
+              <h3>Export Options</h3>
+              <div class="setting-row">
+                <label>Export Format</label>
+                <select id="settingExportFormat">
+                  <option value="single">Single HTML File (inlined assets)</option>
+                  <option value="bundle">Multi-file Bundle (HTML + assets folder)</option>
+                  <option value="zip">Zipped Package</option>
+                </select>
+              </div>
+              <div class="setting-row checkbox-row">
+                <input type="checkbox" id="settingMinify">
+                <label for="settingMinify">Minify output</label>
+              </div>
+              <div class="setting-row checkbox-row">
+                <input type="checkbox" id="settingIncludePrint" checked>
+                <label for="settingIncludePrint">Include print stylesheet</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modals -->
+    <div class="modal" id="widgetEditorModal">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h2>HTML Widget Editor</h2>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="widget-editor-container">
+            <div class="widget-tabs">
+              <button class="widget-tab active" data-tab="html">HTML</button>
+              <button class="widget-tab" data-tab="css">CSS</button>
+              <button class="widget-tab" data-tab="js">JavaScript</button>
+            </div>
+            <div class="widget-code-panels">
+              <div class="code-panel active" id="htmlPanel">
+                <textarea id="widgetHtml" placeholder="<div class='my-widget'>...</div>"></textarea>
+              </div>
+              <div class="code-panel" id="cssPanel">
+                <textarea id="widgetCss" placeholder=".my-widget { ... }"></textarea>
+              </div>
+              <div class="code-panel" id="jsPanel">
+                <textarea id="widgetJs" placeholder="// Your JavaScript code"></textarea>
+              </div>
+            </div>
+            <div class="widget-preview">
+              <h4>Preview</h4>
+              <iframe id="widgetPreviewFrame"></iframe>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-close>Cancel</button>
+          <button class="btn btn-primary" id="saveWidget">Save Widget</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="mediaLinkModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Link Media to Content</h2>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="link-settings">
+            <div class="setting-row">
+              <label>Trigger Type</label>
+              <select id="linkTriggerType">
+                <option value="onEnter">On Enter (when block enters viewport)</option>
+                <option value="onCenter">On Center (when block is centered)</option>
+                <option value="onExit">On Exit (when block leaves viewport)</option>
+                <option value="onProgress">On Progress (continuous 0-1 based on scroll)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label>Transition Effect</label>
+              <select id="linkTransition">
+                <option value="fade">Fade</option>
+                <option value="slide">Slide</option>
+                <option value="none">None (instant)</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label>Transition Duration (ms)</label>
+              <input type="number" id="linkDuration" value="300" min="0" max="2000">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-close>Cancel</button>
+          <button class="btn btn-primary" id="confirmMediaLink">Link Media</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="exportModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Export Book</h2>
+          <button class="modal-close" data-close>&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="export-options">
+            <div class="export-option">
+              <input type="radio" name="exportType" id="exportSingle" value="single" checked>
+              <label for="exportSingle">
+                <strong>Single HTML File</strong>
+                <span>All assets inlined (base64). Best for sharing.</span>
+              </label>
+            </div>
+            <div class="export-option">
+              <input type="radio" name="exportType" id="exportBundle" value="bundle">
+              <label for="exportBundle">
+                <strong>Multi-file Bundle</strong>
+                <span>HTML + separate assets folder. Better for large projects.</span>
+              </label>
+            </div>
+          </div>
+          <div class="export-progress" id="exportProgress" style="display:none;">
+            <div class="progress-bar">
+              <div class="progress-fill" id="exportProgressFill"></div>
+            </div>
+            <p id="exportStatus">Preparing export...</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-close>Cancel</button>
+          <button class="btn btn-primary" id="startExport">Export</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden file inputs -->
+    <input type="file" id="fileInput" multiple accept="image/*,video/*,.svg,.json,.ggb,.html" style="display:none">
+    <input type="file" id="projectInput" accept=".json" style="display:none">
+  </div>
+
+  <script type="module" src="src/js/app.js"></script>
+</body>
+</html>
