@@ -4,7 +4,7 @@ Image canvas widget for displaying and interacting with root images.
 
 import numpy as np
 from typing import Optional, List, Tuple, Dict, Callable
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QToolTip
 from PySide6.QtCore import Qt, Signal, QPointF, QTimer
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QBrush
 
@@ -53,6 +53,11 @@ class ImageCanvas(QGraphicsView):
         # Highlight for selected/hovered items
         self._highlighted_lateral: Optional[Tuple[int, int]] = None
         self._highlighted_root: Optional[int] = None  # Root ID to highlight
+
+        # Measurement data for tooltips (set from main window)
+        self._root_measurements: Dict[int, Dict] = {}  # root_id -> {length, angle, laterals: [...]}
+        self._pixels_per_unit: float = 161.0
+        self._unit: str = "cm"
 
         # Colors for different roots
         self._root_colors = [
@@ -274,6 +279,12 @@ class ImageCanvas(QGraphicsView):
         self._highlighted_root = root_id
         self._update_display()
 
+    def set_measurements(self, measurements: Dict[int, Dict], pixels_per_unit: float, unit: str):
+        """Set measurement data for tooltips."""
+        self._root_measurements = measurements
+        self._pixels_per_unit = pixels_per_unit
+        self._unit = unit
+
     def clear_tracings(self):
         """Clear all tracing overlays."""
         self._roots = []
@@ -348,7 +359,50 @@ class ImageCanvas(QGraphicsView):
                 self._highlighted_lateral = found
                 self._update_display()
 
+        # Show tooltip when hovering over roots or laterals
+        if self._image is not None and self._root_measurements:
+            tooltip = self._get_tooltip_at(x, y)
+            if tooltip:
+                QToolTip.showText(event.globalPosition().toPoint(), tooltip, self)
+            else:
+                QToolTip.hideText()
+
         super().mouseMoveEvent(event)
+
+    def _get_tooltip_at(self, x: int, y: int, tolerance: int = 8) -> Optional[str]:
+        """Get tooltip text for item at position."""
+        # Check laterals first (smaller, on top)
+        for root in self._roots:
+            root_id = root.get('id', 0)
+            for lat in root.get('laterals', []):
+                lat_id = lat.get('id', 0)
+                for px, py in lat.get('points', []):
+                    if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
+                        # Found lateral
+                        if root_id in self._root_measurements:
+                            lat_data = self._root_measurements[root_id].get('laterals', {})
+                            if lat_id in lat_data:
+                                data = lat_data[lat_id]
+                                return (f"Lateral {lat_id}\n"
+                                       f"Length: {data.get('length', 0):.3f} {self._unit}\n"
+                                       f"Angle: {data.get('angle', 0):.1f}°")
+                        return f"Lateral {lat_id}"
+
+        # Check main roots
+        for root in self._roots:
+            root_id = root.get('id', 0)
+            for px, py in root.get('points', []):
+                if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
+                    # Found main root
+                    if root_id in self._root_measurements:
+                        data = self._root_measurements[root_id]
+                        return (f"Root {root_id}\n"
+                               f"Length: {data.get('length', 0):.3f} {self._unit}\n"
+                               f"Angle: {data.get('angle', 0):.1f}°\n"
+                               f"Laterals: {data.get('lat_count', 0)}")
+                    return f"Root {root_id}"
+
+        return None
 
     def _find_lateral_near(self, x: int, y: int, tolerance: int = 10) -> Optional[Tuple[int, int]]:
         """Find lateral near a point."""

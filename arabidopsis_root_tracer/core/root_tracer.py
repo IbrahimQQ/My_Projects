@@ -927,3 +927,45 @@ class MeasurementCalculator:
 
         points_to_branch = main_root_points[:branch_index + 1]
         return MeasurementCalculator.calculate_path_length(points_to_branch, pixels_per_unit)
+
+    @staticmethod
+    def calculate_root_angle(points: List[Tuple[int, int]]) -> float:
+        """
+        Calculate the overall angle of a root from vertical (0 = straight down).
+
+        Returns:
+            Angle in degrees from vertical (-180 to 180, 0 = straight down)
+        """
+        if len(points) < 2:
+            return 0.0
+
+        # Use start and end points for overall direction
+        x1, y1 = points[0]
+        x2, y2 = points[-1]
+
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx == 0 and dy == 0:
+            return 0.0
+
+        # Calculate angle from vertical (positive y is down in image coords)
+        # atan2(dx, dy) gives angle from positive y-axis (down)
+        angle = np.degrees(np.arctan2(dx, dy))
+        return angle
+
+    @staticmethod
+    def calculate_segment_angle(p1: Tuple[int, int], p2: Tuple[int, int]) -> float:
+        """
+        Calculate angle of a line segment from vertical.
+
+        Returns:
+            Angle in degrees from vertical
+        """
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+
+        if dx == 0 and dy == 0:
+            return 0.0
+
+        return np.degrees(np.arctan2(dx, dy))

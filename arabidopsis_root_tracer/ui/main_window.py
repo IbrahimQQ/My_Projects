@@ -128,35 +128,43 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(mode_group)
 
-        # Tracing controls
+        # Tracing controls - compact layout
         trace_group = QGroupBox("Tracing")
         trace_layout = QVBoxLayout(trace_group)
+        trace_layout.setSpacing(4)
 
+        # Threshold and invert in one row
         thresh_layout = QHBoxLayout()
-        thresh_layout.addWidget(QLabel("Threshold:"))
+        thresh_layout.addWidget(QLabel("Thresh:"))
         self._spin_threshold = QSpinBox()
         self._spin_threshold.setRange(1, 255)
         self._spin_threshold.setValue(30)
+        self._spin_threshold.setFixedWidth(60)
         thresh_layout.addWidget(self._spin_threshold)
+
+        from PySide6.QtWidgets import QCheckBox, QToolButton, QMenu
+        self._chk_invert = QCheckBox("Invert")
+        thresh_layout.addWidget(self._chk_invert)
+        thresh_layout.addStretch()
         trace_layout.addLayout(thresh_layout)
 
-        # Invert checkbox for black roots on white background
-        from PySide6.QtWidgets import QCheckBox
-        self._chk_invert = QCheckBox("Invert (black roots on white)")
-        trace_layout.addWidget(self._chk_invert)
+        # Lateral buttons in row
+        lat_layout = QHBoxLayout()
+        self._btn_trace_laterals = QPushButton("Laterals (L)")
+        self._btn_trace_all_laterals = QPushButton("All Lat (⇧L)")
+        lat_layout.addWidget(self._btn_trace_laterals)
+        lat_layout.addWidget(self._btn_trace_all_laterals)
+        trace_layout.addLayout(lat_layout)
 
-        self._btn_trace_laterals = QPushButton("Trace Laterals (L)")
-        self._btn_trace_all_laterals = QPushButton("Trace All Laterals (Shift+L)")
-        self._btn_clear_current = QPushButton("Clear Selected Root (C)")
-        self._btn_clear_all = QPushButton("Clear All Roots")
-
-        trace_layout.addWidget(self._btn_trace_laterals)
-        trace_layout.addWidget(self._btn_trace_all_laterals)
-        trace_layout.addWidget(self._btn_clear_current)
-        trace_layout.addWidget(self._btn_clear_all)
+        # Clear buttons in row
+        clear_layout = QHBoxLayout()
+        self._btn_clear_current = QPushButton("Clear Root (C)")
+        self._btn_clear_all = QPushButton("Clear All")
+        clear_layout.addWidget(self._btn_clear_current)
+        clear_layout.addWidget(self._btn_clear_all)
+        trace_layout.addLayout(clear_layout)
 
         right_layout.addWidget(trace_group)
-        right_layout.addSpacing(5)
 
         # Root list
         roots_group = QGroupBox("Roots")
@@ -187,9 +195,9 @@ class MainWindow(QMainWindow):
         measure_layout = QVBoxLayout(measure_group)
 
         self._tbl_measurements = QTableWidget()
-        self._tbl_measurements.setColumnCount(7)
+        self._tbl_measurements.setColumnCount(8)
         self._tbl_measurements.setHorizontalHeaderLabels([
-            "Slice", "Root#", "Length", "Lat.Count", "Lat.Length", "Density", "Lat/Unit"
+            "Slice", "Root#", "Length", "Angle", "Lat.Cnt", "Lat.Len", "Density", "Lat/Unit"
         ])
         self._tbl_measurements.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._tbl_measurements.setMinimumHeight(150)
@@ -197,26 +205,39 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(measure_group)
 
-        # Export
-        export_group = QGroupBox("Export (Ctrl+E)")
-        export_layout = QVBoxLayout(export_group)
-        self._btn_export_all = QPushButton("Export All Measurements")
-        self._btn_export_points = QPushButton("Export All Points")
+        # Export and ML in one group with dropdown
+        actions_group = QGroupBox("Actions")
+        actions_layout = QVBoxLayout(actions_group)
+        actions_layout.setSpacing(4)
+
+        # Export buttons in row
+        export_layout = QHBoxLayout()
+        self._btn_export_all = QPushButton("Export CSV")
+        self._btn_export_points = QPushButton("Export Points")
         export_layout.addWidget(self._btn_export_all)
         export_layout.addWidget(self._btn_export_points)
-        right_layout.addWidget(export_group)
+        actions_layout.addLayout(export_layout)
 
-        # Machine Learning
-        ml_group = QGroupBox("Machine Learning")
-        ml_layout = QVBoxLayout(ml_group)
-        self._btn_export_training = QPushButton("Export Training Data")
-        self._btn_train_model = QPushButton("Train Model...")
-        self._btn_auto_detect = QPushButton("Auto-Detect Roots")
-        self._btn_auto_detect.setEnabled(False)  # Disabled until model loaded
-        ml_layout.addWidget(self._btn_export_training)
-        ml_layout.addWidget(self._btn_train_model)
+        # ML buttons - use dropdown menu
+        ml_layout = QHBoxLayout()
+        self._btn_auto_detect = QPushButton("Auto-Detect")
+        self._btn_auto_detect.setEnabled(False)
+
+        # ML menu button
+        self._btn_ml_menu = QToolButton()
+        self._btn_ml_menu.setText("ML ▼")
+        self._btn_ml_menu.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        ml_menu = QMenu(self._btn_ml_menu)
+        self._action_export_training = ml_menu.addAction("Export Training Data")
+        self._action_train_model = ml_menu.addAction("Train Model...")
+        self._action_load_model = ml_menu.addAction("Load Model...")
+        self._btn_ml_menu.setMenu(ml_menu)
+
         ml_layout.addWidget(self._btn_auto_detect)
-        right_layout.addWidget(ml_group)
+        ml_layout.addWidget(self._btn_ml_menu)
+        actions_layout.addLayout(ml_layout)
+
+        right_layout.addWidget(actions_group)
 
         right_layout.addStretch()
 
@@ -354,9 +375,10 @@ class MainWindow(QMainWindow):
         self._btn_export_all.clicked.connect(self._on_export_all)
         self._btn_export_points.clicked.connect(self._on_export_points)
 
-        # Machine Learning
-        self._btn_export_training.clicked.connect(self._on_export_training_data)
-        self._btn_train_model.clicked.connect(self._on_train_model)
+        # Machine Learning (menu actions)
+        self._action_export_training.triggered.connect(self._on_export_training_data)
+        self._action_train_model.triggered.connect(self._on_train_model)
+        self._action_load_model.triggered.connect(self._on_load_model)
         self._btn_auto_detect.clicked.connect(self._on_auto_detect)
 
     def _set_mode(self, mode: str):
@@ -432,9 +454,44 @@ class MainWindow(QMainWindow):
     def _update_canvas_display(self):
         roots = self._root_tracer.get_all_roots()
         self._canvas.set_roots(roots)
+        self._update_canvas_measurements()
+
+    def _update_canvas_measurements(self):
+        """Update measurement data for canvas tooltips."""
+        pixels_per_unit = self._spin_pixels_per_unit.value()
+        unit = self._cmb_unit.currentText()
+        roots = self._root_tracer.get_all_roots()
+
+        measurements = {}
+        for root in roots:
+            root_id = root['id']
+            main_points = root.get('points', [])
+            laterals = root.get('laterals', [])
+
+            root_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
+            root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
+            lat_data = {}
+            for lat in laterals:
+                lat_id = lat.get('id', 0)
+                lat_points = lat.get('points', [])
+                lat_length = self._measurement_calc.calculate_path_length(lat_points, pixels_per_unit)
+                lat_angle = self._measurement_calc.calculate_lateral_angle(
+                    main_points, lat_points, lat.get('start_index', 0)
+                )
+                lat_data[lat_id] = {'length': lat_length, 'angle': lat_angle}
+
+            measurements[root_id] = {
+                'length': root_length,
+                'angle': root_angle,
+                'lat_count': len(laterals),
+                'laterals': lat_data
+            }
+
+        self._canvas.set_measurements(measurements, pixels_per_unit, unit)
 
     def _update_measurements_table(self):
-        """Update measurements with new column format."""
+        """Update measurements with new column format including angle."""
         self._tbl_measurements.setRowCount(0)
 
         # Gather all data
@@ -454,6 +511,7 @@ class MainWindow(QMainWindow):
                 laterals = root.get('laterals', [])
 
                 root_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
+                root_angle = self._measurement_calc.calculate_root_angle(main_points)
                 lat_count = len(laterals)
 
                 total_lat_length = 0
@@ -472,6 +530,7 @@ class MainWindow(QMainWindow):
                     'slice': slice_name,
                     'root': root_id,
                     'length': root_length,
+                    'angle': root_angle,
                     'lat_count': lat_count,
                     'lat_length': total_lat_length,
                     'density': lat_density,
@@ -484,10 +543,11 @@ class MainWindow(QMainWindow):
             self._tbl_measurements.setItem(i, 0, QTableWidgetItem(row['slice']))
             self._tbl_measurements.setItem(i, 1, QTableWidgetItem(str(row['root'])))
             self._tbl_measurements.setItem(i, 2, QTableWidgetItem(f"{row['length']:.3f}"))
-            self._tbl_measurements.setItem(i, 3, QTableWidgetItem(str(row['lat_count'])))
-            self._tbl_measurements.setItem(i, 4, QTableWidgetItem(f"{row['lat_length']:.3f}"))
-            self._tbl_measurements.setItem(i, 5, QTableWidgetItem(f"{row['density']:.3f}"))
-            self._tbl_measurements.setItem(i, 6, QTableWidgetItem(f"{row['lat_per_unit']:.3f}"))
+            self._tbl_measurements.setItem(i, 3, QTableWidgetItem(f"{row['angle']:.1f}"))
+            self._tbl_measurements.setItem(i, 4, QTableWidgetItem(str(row['lat_count'])))
+            self._tbl_measurements.setItem(i, 5, QTableWidgetItem(f"{row['lat_length']:.3f}"))
+            self._tbl_measurements.setItem(i, 6, QTableWidgetItem(f"{row['density']:.3f}"))
+            self._tbl_measurements.setItem(i, 7, QTableWidgetItem(f"{row['lat_per_unit']:.3f}"))
 
     def _save_current_slice_data(self):
         """Save current slice data - ISOLATED from other slices."""
@@ -821,6 +881,7 @@ class MainWindow(QMainWindow):
             for root in roots:
                 main_points = root.get('points', [])
                 main_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
+                root_angle = self._measurement_calc.calculate_root_angle(main_points)
 
                 lateral_data = []
                 for lat in root.get('laterals', []):
@@ -844,6 +905,7 @@ class MainWindow(QMainWindow):
                     'slice_name': f"{slice_name}_Root{root['id']}",
                     'main_root_points': main_points,
                     'main_root_length': main_length,
+                    'root_angle': root_angle,
                     'lateral_roots': lateral_data
                 })
 
@@ -1208,6 +1270,15 @@ class MainWindow(QMainWindow):
         btn_train.clicked.connect(start_training)
 
         dialog.exec()
+
+    @Slot()
+    def _on_load_model(self):
+        """Let user browse for and load a trained ML model."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Load ML Model", "", "PyTorch Model (*.pth *.pt);;All Files (*)"
+        )
+        if file_path:
+            self._load_ml_model(file_path)
 
     def _load_ml_model(self, path: str):
         """Load a trained ML model."""

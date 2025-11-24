@@ -4,7 +4,7 @@ Image handler for multi-slice TIFF files.
 
 import numpy as np
 import tifffile
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 
 
 class ImageHandler:
@@ -15,6 +15,8 @@ class ImageHandler:
         self._file_path: Optional[str] = None
         self._slice_names: List[str] = []
         self._current_slice: int = 0
+        # Cache for normalized slices
+        self._normalized_cache: Dict[int, np.ndarray] = {}
 
     def load_tiff(self, file_path: str) -> bool:
         """
@@ -29,6 +31,7 @@ class ImageHandler:
         try:
             self._stack = tifffile.imread(file_path)
             self._file_path = file_path
+            self._normalized_cache = {}  # Clear cache
 
             # Handle single image vs stack
             if self._stack.ndim == 2:
@@ -44,6 +47,9 @@ class ImageHandler:
                 # Stack of RGB - convert each to grayscale
                 self._stack = np.mean(self._stack, axis=3).astype(np.uint8)
 
+            # Pre-normalize all slices for fast switching
+            self._precompute_normalized()
+
             # Initialize slice names
             self._slice_names = [f"Slice_{i+1}" for i in range(self.num_slices)]
             self._current_slice = 0
@@ -53,6 +59,18 @@ class ImageHandler:
         except Exception as e:
             print(f"Error loading TIFF: {e}")
             return False
+
+    def _precompute_normalized(self):
+        """Pre-compute normalized versions of all slices."""
+        if self._stack is None:
+            return
+
+        for i in range(self.num_slices):
+            img = self._stack[i].astype(np.float32)
+            vmin, vmax = img.min(), img.max()
+            if vmax > vmin:
+                img = (img - vmin) / (vmax - vmin) * 255
+            self._normalized_cache[i] = img.astype(np.uint8)
 
     @property
     def is_loaded(self) -> bool:
@@ -137,7 +155,7 @@ class ImageHandler:
 
     def normalize_slice(self, index: Optional[int] = None) -> Optional[np.ndarray]:
         """
-        Get a normalized (0-255) version of a slice.
+        Get a normalized (0-255) version of a slice from cache.
 
         Args:
             index: Slice index (default: current slice)
@@ -145,12 +163,22 @@ class ImageHandler:
         Returns:
             Normalized 2D numpy array
         """
+        if self._stack is None:
+            return None
+
+        if index is None:
+            index = self._current_slice
+
+        # Return from cache if available
+        if index in self._normalized_cache:
+            return self._normalized_cache[index].copy()
+
+        # Fallback: compute on demand
         img = self.get_slice(index)
         if img is None:
             return None
 
-        # Normalize to 0-255
-        img = img.astype(np.float64)
+        img = img.astype(np.float32)
         if img.max() > img.min():
             img = (img - img.min()) / (img.max() - img.min()) * 255
         return img.astype(np.uint8)

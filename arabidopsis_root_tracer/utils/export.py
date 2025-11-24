@@ -35,11 +35,12 @@ class CSVExporter:
             with open(file_path, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
 
-                # New header format
+                # New header format with angle
                 writer.writerow([
                     'Slice Name',
                     'Root #',
                     f'Root Length ({unit})',
+                    'Root Angle (deg)',
                     'Lateral Count',
                     f'Total Lateral Length ({unit})',
                     f'Lateral Density ({unit}/lateral)',
@@ -49,6 +50,7 @@ class CSVExporter:
                 for slice_info in slice_data:
                     slice_name = slice_info.get('slice_name', 'Unknown')
                     root_length = slice_info.get('main_root_length', 0)
+                    root_angle = slice_info.get('root_angle', 0)
                     laterals = slice_info.get('lateral_roots', [])
 
                     lat_count = len(laterals)
@@ -73,6 +75,7 @@ class CSVExporter:
                         slice_name,
                         root_num,
                         f'{root_length:.3f}',
+                        f'{root_angle:.1f}',
                         lat_count,
                         f'{total_lat_length:.3f}',
                         f'{lat_density:.3f}',
