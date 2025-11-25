@@ -17,6 +17,7 @@ class ProjectStorage {
                 title: 'Untitled Book',
                 author: '',
                 description: '',
+                titleImage: null,
                 created: new Date().toISOString(),
                 modified: new Date().toISOString()
             },
@@ -42,7 +43,9 @@ class ProjectStorage {
                     format: 'single',
                     includeKatex: true,
                     includeHighlight: true,
-                    includePrintStyles: true
+                    includePrintStyles: true,
+                    footerText: 'Created with HTML Book Builder',
+                    showFooter: true
                 },
                 customCss: ''
             },
@@ -219,6 +222,8 @@ class ProjectStorage {
                 return { ...baseBlock };
             case 'collapsible':
                 return { ...baseBlock, title: 'Collapsible Section', content: '' };
+            case 'controls':
+                return { ...baseBlock, controls: [], spacing: 16 };
             default:
                 return baseBlock;
         }

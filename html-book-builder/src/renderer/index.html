@@ -237,6 +237,16 @@
                             <label for="bookDescription">Description</label>
                             <textarea id="bookDescription" placeholder="Book description..."></textarea>
                         </div>
+                        <div class="setting-group">
+                            <label>Title Image (optional)</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button class="btn btn-secondary" id="selectTitleImageBtn">Select Image</button>
+                                <button class="btn btn-secondary" id="clearTitleImageBtn" style="display: none;">Clear</button>
+                            </div>
+                            <div id="titleImagePreview" style="margin-top: 8px; display: none;">
+                                <img id="titleImagePreviewImg" style="max-width: 200px; max-height: 100px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="settings-section">
@@ -270,6 +280,14 @@
                                 <option value="Merriweather">Merriweather</option>
                                 <option value="Playfair Display">Playfair Display</option>
                                 <option value="Roboto">Roboto</option>
+                                <option value="Open Sans">Open Sans</option>
+                                <option value="Montserrat">Montserrat</option>
+                                <option value="Raleway">Raleway</option>
+                                <option value="Poppins">Poppins</option>
+                                <option value="Lato">Lato</option>
+                                <option value="PT Serif">PT Serif</option>
+                                <option value="Crimson Text">Crimson Text</option>
+                                <option value="Libre Baskerville">Libre Baskerville</option>
                             </select>
                         </div>
                         <div class="setting-group">
@@ -279,6 +297,13 @@
                                 <option value="Merriweather">Merriweather</option>
                                 <option value="Lora">Lora</option>
                                 <option value="Roboto">Roboto</option>
+                                <option value="Open Sans">Open Sans</option>
+                                <option value="Source Sans Pro">Source Sans Pro</option>
+                                <option value="Noto Sans">Noto Sans</option>
+                                <option value="PT Sans">PT Sans</option>
+                                <option value="Work Sans">Work Sans</option>
+                                <option value="Georgia">Georgia</option>
+                                <option value="Crimson Text">Crimson Text</option>
                             </select>
                         </div>
                         <div class="setting-group">
@@ -287,6 +312,10 @@
                                 <option value="Fira Code">Fira Code</option>
                                 <option value="JetBrains Mono">JetBrains Mono</option>
                                 <option value="Source Code Pro">Source Code Pro</option>
+                                <option value="Roboto Mono">Roboto Mono</option>
+                                <option value="IBM Plex Mono">IBM Plex Mono</option>
+                                <option value="Inconsolata">Inconsolata</option>
+                                <option value="Courier New">Courier New</option>
                             </select>
                         </div>
                         <div class="setting-group">
@@ -349,7 +378,21 @@
                                     <input type="radio" name="exportFormat" value="zip">
                                     Zipped Package
                                 </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="exportFormat" value="multiChapter">
+                                    Multiple HTML Files (one per chapter)
+                                </label>
                             </div>
+                        </div>
+                        <div class="setting-group">
+                            <label for="footerText">Footer Text</label>
+                            <input type="text" id="footerText" placeholder="Created with HTML Book Builder">
+                        </div>
+                        <div class="setting-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="showFooter" checked>
+                                Show footer
+                            </label>
                         </div>
                         <div class="setting-group">
                             <label class="checkbox-label">
@@ -436,6 +479,13 @@
                             <path d="M4 6h16v2H4zm4 5h12v2H8zm0 5h12v2H8z"/>
                         </svg>
                         <span>Collapsible</span>
+                    </button>
+                    <button class="block-type-btn" data-type="controls">
+                        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                            <path d="M12 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-6 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm12 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+                            <path d="M4 12h7v2H4zm9 0h7v2h-7z"/>
+                        </svg>
+                        <span>Controls</span>
                     </button>
                 </div>
             </div>

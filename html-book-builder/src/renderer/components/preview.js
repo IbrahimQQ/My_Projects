@@ -163,11 +163,16 @@ class Preview {
                 flex: 0 0 ${layout.mediaWidth}%;
                 max-width: ${layout.mediaWidth}%;
                 position: relative;
+                overflow: hidden;
             }
 
             .media-sticky {
                 position: sticky;
                 top: 80px;
+                height: calc(100vh - 160px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
             .content-block {
@@ -291,16 +296,21 @@ class Preview {
 
             /* Media Items */
             .media-item {
-                width: 100%;
-                margin-bottom: 24px;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) scale(0.9);
+                width: 90%;
+                max-width: 100%;
                 opacity: 0;
-                transform: scale(0.95);
-                transition: opacity 0.5s ease, transform 0.5s ease;
+                transition: opacity 0.6s ease, transform 0.6s ease;
+                pointer-events: none;
             }
 
             .media-item.active {
                 opacity: 1;
-                transform: scale(1);
+                transform: translate(-50%, -50%) scale(1);
+                pointer-events: auto;
             }
 
             .media-item img,
