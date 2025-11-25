@@ -9,27 +9,36 @@ class BlockEditor {
         this.chapterTitleInput = document.getElementById('chapterTitleInput');
         this.inspectorContent = document.getElementById('inspectorContent');
         this.blockTypeModal = document.getElementById('blockTypeModal');
+        this.chapterDropdown = document.getElementById('chapterDropdown');
+        this.addChapterBtnToolbar = document.getElementById('addChapterBtnToolbar');
 
         this.init();
     }
 
     init() {
+        // Chapter dropdown
+        this.chapterDropdown.addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.selectChapter(e.target.value);
+            }
+        });
+
+        // Add chapter button (toolbar)
+        this.addChapterBtnToolbar.addEventListener('click', () => {
+            const chapter = projectStorage.addChapter();
+            this.populateChapterDropdown();
+            this.selectChapter(chapter.id);
+        });
+
         // Chapter title change
         this.chapterTitleInput.addEventListener('input', helpers.debounce(() => {
             if (this.currentChapterId) {
                 projectStorage.updateChapter(this.currentChapterId, {
                     title: this.chapterTitleInput.value
                 });
-                this.renderChapterList();
+                this.populateChapterDropdown();
             }
         }, 300));
-
-        // Add chapter button
-        document.getElementById('addChapterBtn').addEventListener('click', () => {
-            const chapter = projectStorage.addChapter();
-            this.renderChapterList();
-            this.selectChapter(chapter.id);
-        });
 
         // Add block button
         document.getElementById('addBlockBtn').addEventListener('click', () => {
@@ -61,43 +70,29 @@ class BlockEditor {
     }
 
     /**
-     * Render chapter list in sidebar
+     * Populate chapter dropdown
      */
-    renderChapterList() {
+    populateChapterDropdown() {
         const chapters = projectStorage.currentProject.chapters;
-        this.chapterList.innerHTML = '';
+        this.chapterDropdown.innerHTML = '<option value="">Select Chapter...</option>';
 
         chapters.forEach((chapter, index) => {
-            const li = document.createElement('li');
-            li.className = `chapter-item ${chapter.id === this.currentChapterId ? 'active' : ''}`;
-            li.dataset.chapterId = chapter.id;
-            li.innerHTML = `
-                <svg class="chapter-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 22h15v-2H6.012C5.55 19.988 5 19.806 5 19c0-.101.009-.191.024-.273.112-.576.584-.717.988-.727H21V4c0-1.103-.897-2-2-2H6c-1.206 0-3 .799-3 3v14c0 2.201 1.794 3 3 3zM5 8V5c0-.806.55-.988 1-1h13v12H5V8z"/>
-                </svg>
-                <span class="chapter-name">${helpers.escapeHtml(chapter.title)}</span>
-                <div class="chapter-actions">
-                    <button class="delete-chapter" title="Delete Chapter">
-                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
-                            <path d="M5 20a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8h2V6h-4V4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2H3v2h2zM9 4h6v2H9zM8 8h9v12H7V8z"/>
-                        </svg>
-                    </button>
-                </div>
-            `;
-
-            li.addEventListener('click', (e) => {
-                if (!e.target.closest('.chapter-actions')) {
-                    this.selectChapter(chapter.id);
-                }
-            });
-
-            li.querySelector('.delete-chapter').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.deleteChapter(chapter.id);
-            });
-
-            this.chapterList.appendChild(li);
+            const option = document.createElement('option');
+            option.value = chapter.id;
+            option.textContent = `${index + 1}. ${chapter.title}`;
+            if (chapter.id === this.currentChapterId) {
+                option.selected = true;
+            }
+            this.chapterDropdown.appendChild(option);
         });
+    }
+
+    /**
+     * Render chapter list in sidebar (legacy - kept for compatibility)
+     */
+    renderChapterList() {
+        // Now delegates to dropdown
+        this.populateChapterDropdown();
     }
 
     /**

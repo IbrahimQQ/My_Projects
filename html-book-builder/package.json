@@ -32,7 +32,8 @@
     "@codemirror/lang-javascript": "^6.2.1",
     "marked": "^11.0.0",
     "dompurify": "^3.0.6",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "mammoth": "^1.6.0"
   },
   "build": {
     "appId": "com.htmlbookbuilder.app",

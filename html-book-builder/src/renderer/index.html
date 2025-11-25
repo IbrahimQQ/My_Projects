@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles/storyboard.css">
     <link rel="stylesheet" href="styles/preview.css">
     <link rel="stylesheet" href="styles/settings.css">
+    <link rel="stylesheet" href="styles/word-importer.css">
 </head>
 <body>
     <div id="app">
@@ -432,6 +433,36 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Word Import View -->
+            <div class="view" id="wordImportView" style="display: none;">
+                <div class="word-import-container">
+                    <div class="word-import-header">
+                        <h2>Import from Word Document</h2>
+                        <button class="btn btn-secondary" id="closeWordImportBtn">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                            Close
+                        </button>
+                    </div>
+                    <div class="word-content-area" id="wordContentArea">
+                        <div class="word-import-placeholder">
+                            <svg viewBox="0 0 24 24" width="64" height="64" fill="currentColor" opacity="0.3">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+                                <path d="M8 12h8v2H8zm0 4h8v2H8zm0-8h5v2H8z"/>
+                            </svg>
+                            <p>No document loaded</p>
+                            <button class="btn btn-primary" id="importWordBtn">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M13 5h7v2h-7zm0 4h7v2h-7zm0 4h7v2h-7zM6 5h5v5H6zm0 7h5v5H6z"/>
+                                </svg>
+                                Import Word Document
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- Block Type Selector Modal -->
@@ -557,6 +588,46 @@
             </div>
         </div>
 
+        <!-- Floating Toolbar for Text Selection -->
+        <div class="floating-toolbar" id="floatingToolbar">
+            <div class="toolbar-section">
+                <span class="toolbar-label">Create Block:</span>
+                <button class="toolbar-btn" id="createBlock_heading" title="Heading">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M6 4v6h4V4h2v14H6v-6H4v8h16V4h-2v14h-6V10h4V4z"/>
+                    </svg>
+                </button>
+                <button class="toolbar-btn" id="createBlock_paragraph" title="Paragraph">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M4 7h16v2H4zm0 4h16v2H4zm0 4h12v2H4z"/>
+                    </svg>
+                </button>
+                <button class="toolbar-btn" id="createBlock_quote" title="Quote">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M10 8H7c-1.103 0-2 .897-2 2v4c0 1.103.897 2 2 2h3c1.103 0 2-.897 2-2v-2c0-3.309-2.691-6-6-6v2c2.206 0 4 1.794 4 4zm9-4c-3.309 0-6 2.691-6 6v2c0 1.103.897 2 2 2h3c1.103 0 2-.897 2-2v-4c0-1.103-.897-2-2-2h-3c0-2.206 1.794-4 4-4V4z"/>
+                    </svg>
+                </button>
+                <button class="toolbar-btn" id="createBlock_list" title="List">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M4 6h2v2H4zm0 5h2v2H4zm0 5h2v2H4zm16-8V6H8.023v2H20zM8 11h12v2H8zm0 5h12v2H8z"/>
+                    </svg>
+                </button>
+                <button class="toolbar-btn" id="createBlock_code" title="Code">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="m7.375 16.781 1.25-1.562L4.601 12l4.024-3.219-1.25-1.562-5 4a1 1 0 0 0 0 1.562l5 4zm9.25-9.562-1.25 1.562L19.399 12l-4.024 3.219 1.25 1.562 5-4a1 1 0 0 0 0-1.562l-5-4z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="toolbar-divider"></div>
+            <button class="toolbar-btn toolbar-btn-primary" id="createChapter" title="Create Chapter">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 2H5c-1.103 0-2 .897-2 2v16c0 1.103.897 2 2 2h14c1.103 0 2-.897 2-2V4c0-1.103-.897-2-2-2zM5 4h14v16H5V4z"/>
+                    <path d="M8 12h8v2H8zm0-4h8v2H8z"/>
+                </svg>
+                Chapter
+            </button>
+        </div>
+
         <!-- Toast Notifications -->
         <div class="toast-container" id="toastContainer"></div>
     </div>
@@ -568,6 +639,7 @@
     <script src="components/storyboard.js"></script>
     <script src="components/preview.js"></script>
     <script src="components/exporter.js"></script>
+    <script src="components/word-importer.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -807,53 +807,168 @@ ${settings.customCss || ''}`;
     const blocks = document.querySelectorAll('.content-block');
     const mediaItems = document.querySelectorAll('.media-item');
 
-    // Initially show first media if exists
+    // Map to track visibility ratios
+    const blockVisibility = new Map();
+
+    // Initially hide all media
+    mediaItems.forEach(item => {
+        item.style.display = 'none';
+        item.style.opacity = '0';
+    });
+
+    // Show first media by default
     if (mediaItems.length > 0) {
-        mediaItems[0].classList.add('active');
+        mediaItems[0].style.display = 'flex';
+        mediaItems[0].style.opacity = '1';
     }
 
-    // Intersection Observer for scroll-triggered effects
-    const observerOptions = {
-        threshold: 0.2,
-        rootMargin: '-5% 0px -45% 0px'
-    };
+    // Create array of thresholds for smooth transitions
+    const thresholds = [];
+    for (let i = 0; i <= 1.0; i += 0.1) {
+        thresholds.push(i);
+    }
 
+    // Intersection Observer with multiple thresholds
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
-            const block = entry.target;
+            const blockId = entry.target.dataset.blockId;
+            blockVisibility.set(blockId, {
+                ratio: entry.intersectionRatio,
+                block: entry.target,
+                isIntersecting: entry.isIntersecting
+            });
 
+            // Handle trigger events
             if (entry.isIntersecting) {
-                // Animate block into view
-                block.classList.add('in-view');
-
-                // Handle media switching
-                const mediaIds = block.dataset.media;
-                if (mediaIds) {
-                    const ids = mediaIds.split(',');
-
-                    mediaItems.forEach(item => {
-                        const itemId = item.dataset.assetId;
-                        if (ids.includes(itemId)) {
-                            item.classList.add('active');
-                        } else {
-                            item.classList.remove('active');
-                        }
-                    });
-                }
-
-                // Handle trigger events
-                const trigger = block.dataset.trigger;
+                entry.target.classList.add('in-view');
+                const trigger = entry.target.dataset.trigger;
                 if (trigger) {
-                    block.dispatchEvent(new CustomEvent('trigger', {
+                    entry.target.dispatchEvent(new CustomEvent('trigger', {
                         detail: { type: trigger, state: 'enter' }
                     }));
                 }
             }
         });
-    }, observerOptions);
 
-    // Observe all content blocks
-    blocks.forEach(block => observer.observe(block));
+        // Update media opacity based on visibility
+        updateMediaDisplay();
+    }, {
+        threshold: thresholds,
+        rootMargin: '0px'
+    });
+
+    // Observe all blocks
+    blocks.forEach(block => {
+        if (block.dataset.blockId) {
+            observer.observe(block);
+            blockVisibility.set(block.dataset.blockId, {
+                ratio: 0,
+                block: block,
+                isIntersecting: false
+            });
+        }
+    });
+
+    function updateMediaDisplay() {
+        // Find blocks with media attached
+        const blocksWithMedia = Array.from(blocks).filter(block =>
+            block.dataset.media && block.dataset.media.trim() !== ''
+        );
+
+        if (blocksWithMedia.length === 0) return;
+
+        // Sort blocks by their position in document
+        blocksWithMedia.sort((a, b) => {
+            return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+        });
+
+        let mostVisibleBlock = null;
+        let maxVisibility = 0;
+        let nextBlock = null;
+
+        // Find the most visible block with media
+        blocksWithMedia.forEach((block, index) => {
+            const blockId = block.dataset.blockId;
+            const visibility = blockVisibility.get(blockId);
+
+            if (visibility && visibility.ratio > maxVisibility) {
+                maxVisibility = visibility.ratio;
+                mostVisibleBlock = block;
+                // Get next block with media
+                if (index < blocksWithMedia.length - 1) {
+                    nextBlock = blocksWithMedia[index + 1];
+                }
+            }
+        });
+
+        // If no block is visible, show the first one
+        if (!mostVisibleBlock && blocksWithMedia.length > 0) {
+            mostVisibleBlock = blocksWithMedia[0];
+        }
+
+        if (!mostVisibleBlock) return;
+
+        const currentVisibility = blockVisibility.get(mostVisibleBlock.dataset.blockId);
+        const currentMediaIds = mostVisibleBlock.dataset.media.split(',').map(id => id.trim());
+
+        let nextVisibility = null;
+        let nextMediaIds = [];
+
+        if (nextBlock) {
+            nextVisibility = blockVisibility.get(nextBlock.dataset.blockId);
+            nextMediaIds = nextBlock.dataset.media.split(',').map(id => id.trim());
+        }
+
+        // Update media items
+        mediaItems.forEach(item => {
+            const itemId = item.dataset.assetId;
+            const isCurrentMedia = currentMediaIds.includes(itemId);
+            const isNextMedia = nextMediaIds.includes(itemId);
+
+            if (isCurrentMedia) {
+                // Current section's media
+                item.style.display = 'flex';
+
+                // Calculate opacity based on visibility and next section appearance
+                let opacity = 1;
+
+                if (nextVisibility && nextVisibility.ratio > 0 && isNextMedia) {
+                    // If next section has same media, keep full opacity
+                    opacity = 1;
+                } else if (nextVisibility && nextVisibility.ratio > 0) {
+                    // Fade out as next section appears
+                    const fadeStart = 0.3; // Start fading when next section is 30% visible
+                    if (nextVisibility.ratio > fadeStart) {
+                        opacity = Math.max(0, 1 - ((nextVisibility.ratio - fadeStart) / (1 - fadeStart)));
+                    }
+                } else if (currentVisibility && currentVisibility.ratio < 1) {
+                    // Also fade based on current section visibility
+                    opacity = Math.min(1, currentVisibility.ratio * 1.5);
+                }
+
+                item.style.opacity = opacity.toString();
+
+            } else if (isNextMedia && nextVisibility && nextVisibility.ratio > 0.7) {
+                // Next section's media - only show when previous section is mostly gone
+                item.style.display = 'flex';
+
+                // Fade in as we leave current section
+                const fadeInStart = 0.7;
+                const fadeInProgress = (nextVisibility.ratio - fadeInStart) / (1 - fadeInStart);
+                item.style.opacity = Math.min(1, fadeInProgress * 1.5).toString();
+
+            } else {
+                // Hide all other media
+                item.style.opacity = '0';
+                // Use timeout to hide after fade
+                setTimeout(() => {
+                    if (item.style.opacity === '0') {
+                        item.style.display = 'none';
+                    }
+                }, 300);
+            }
+        });
+    }
 
     // Progress-based scroll handling
     const progressBlocks = document.querySelectorAll('[data-trigger="onProgress"]');
@@ -896,6 +1011,9 @@ ${settings.customCss || ''}`;
             }
         });
     });
+
+    // Initial update
+    setTimeout(updateMediaDisplay, 100);
 })();`;
     }
 

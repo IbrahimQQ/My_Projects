@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Dialog methods
     selectFolder: () => ipcRenderer.invoke('select-folder'),
     selectFiles: (options) => ipcRenderer.invoke('select-files', options),
+    selectFile: (filters) => ipcRenderer.invoke('select-file', filters),
     selectImage: () => ipcRenderer.invoke('select-image'),
     selectVideo: () => ipcRenderer.invoke('select-video'),
     selectGeogebra: () => ipcRenderer.invoke('select-geogebra'),
@@ -19,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // File operations
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     readFileBinary: (filePath) => ipcRenderer.invoke('read-file-binary', filePath),
+    readFileBuffer: (filePath) => ipcRenderer.invoke('read-file-buffer', filePath),
     writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
     writeFileBinary: (filePath, base64Content) => ipcRenderer.invoke('write-file-binary', filePath, base64Content),
     copyFile: (source, destination) => ipcRenderer.invoke('copy-file', source, destination),

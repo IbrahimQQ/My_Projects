@@ -237,6 +237,14 @@ ipcMain.handle('select-geogebra', async () => {
     return result.canceled ? null : result.filePaths[0];
 });
 
+ipcMain.handle('select-file', async (event, filters) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: filters || []
+    });
+    return result.canceled ? [] : result.filePaths;
+});
+
 ipcMain.handle('read-file', async (event, filePath) => {
     try {
         return fs.readFileSync(filePath, 'utf8');
@@ -248,6 +256,14 @@ ipcMain.handle('read-file', async (event, filePath) => {
 ipcMain.handle('read-file-binary', async (event, filePath) => {
     try {
         return fs.readFileSync(filePath).toString('base64');
+    } catch (error) {
+        return null;
+    }
+});
+
+ipcMain.handle('read-file-buffer', async (event, filePath) => {
+    try {
+        return fs.readFileSync(filePath);
     } catch (error) {
         return null;
     }
