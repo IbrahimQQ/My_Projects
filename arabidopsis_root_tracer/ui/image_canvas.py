@@ -59,6 +59,9 @@ class ImageCanvas(QGraphicsView):
         self._pixels_per_unit: float = 161.0
         self._unit: str = "cm"
 
+        # Hover state for angle visualization
+        self._hovered_item: Optional[Dict] = None  # {type: 'root'/'lateral', root_id, lat_id, points, angle}
+
         # Colors for different roots
         self._root_colors = [
             (0, 255, 0),    # Green
@@ -204,6 +207,10 @@ class ImageCanvas(QGraphicsView):
             x, y = self._manual_lateral_start
             self._draw_circle(result, x, y, 5, self._manual_point_color)
 
+        # Draw angle visualization for hovered item
+        if self._hovered_item is not None:
+            self._draw_angle_visualization(result, self._hovered_item)
+
         return result
 
     def _draw_line(self, img: np.ndarray, x1: int, y1: int, x2: int, y2: int,
@@ -247,6 +254,115 @@ class ImageCanvas(QGraphicsView):
                 if 0 <= x < width and 0 <= y < height:
                     if (x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2:
                         img[y, x] = color
+
+    def _draw_angle_visualization(self, img: np.ndarray, item: Dict):
+        """Draw a protractor-like visualization showing the angle measurement."""
+        import math
+
+        item_type = item.get('type')
+        points = item.get('points', [])
+        angle = item.get('angle', 0)
+
+        if not points or len(points) < 2:
+            return
+
+        height, width = img.shape[:2]
+
+        if item_type == 'root':
+            # For main root: show angle from vertical at the tip (end point)
+            # Use last point as center
+            cx, cy = points[-1]
+
+            # Reference line: vertical (downward)
+            ref_angle = 90  # degrees, pointing down in screen coords
+
+            # Draw protractor arc
+            arc_radius = 30
+            arc_color = (255, 255, 0)  # Yellow
+
+            # Draw vertical reference line (dotted)
+            for i in range(0, 40, 4):
+                px = cx
+                py = cy - i
+                if 0 <= px < width and 0 <= py < height:
+                    self._draw_circle(img, px, py, 1, (200, 200, 200))
+
+            # Draw arc from vertical to root direction
+            start_angle_rad = math.radians(90)  # Start from vertical (pointing down)
+            end_angle_rad = math.radians(90 + angle)  # Root direction
+
+            # Draw arc
+            num_points = 30
+            for i in range(num_points + 1):
+                t = i / num_points
+                a = start_angle_rad + t * (end_angle_rad - start_angle_rad)
+                x = int(cx + arc_radius * math.cos(a))
+                y = int(cy - arc_radius * math.sin(a))  # Negative because y increases downward
+                if 0 <= x < width and 0 <= y < height:
+                    self._draw_circle(img, x, y, 1, arc_color)
+
+            # Draw root direction line
+            end_x = int(cx + 40 * math.sin(math.radians(angle)))
+            end_y = int(cy + 40 * math.cos(math.radians(angle)))
+            if 0 <= end_x < width and 0 <= end_y < height:
+                self._draw_line(img, cx, cy, end_x, end_y, arc_color)
+
+        elif item_type == 'lateral':
+            # For lateral: show angle from main root at branch point
+            # Use first point (branch point) as center
+            cx, cy = points[0]
+
+            main_root_points = item.get('main_root_points', [])
+            branch_idx = item.get('branch_idx', 0)
+
+            if not main_root_points or branch_idx >= len(main_root_points):
+                return
+
+            # Get main root direction at branch point
+            if branch_idx < len(main_root_points) - 1:
+                main_dx = main_root_points[branch_idx + 1][0] - main_root_points[branch_idx][0]
+                main_dy = main_root_points[branch_idx + 1][1] - main_root_points[branch_idx][1]
+            elif branch_idx > 0:
+                main_dx = main_root_points[branch_idx][0] - main_root_points[branch_idx - 1][0]
+                main_dy = main_root_points[branch_idx][1] - main_root_points[branch_idx - 1][1]
+            else:
+                return
+
+            main_angle = math.degrees(math.atan2(main_dy, main_dx))
+
+            # Get lateral direction
+            if len(points) >= 2:
+                lat_dx = points[1][0] - points[0][0]
+                lat_dy = points[1][1] - points[0][1]
+                lat_angle = math.degrees(math.atan2(lat_dy, lat_dx))
+            else:
+                return
+
+            # Draw arc
+            arc_radius = 25
+            arc_color = (255, 165, 0)  # Orange
+
+            # Draw main root direction line
+            main_end_x = int(cx + 35 * math.cos(math.radians(main_angle)))
+            main_end_y = int(cy + 35 * math.sin(math.radians(main_angle)))
+            if 0 <= main_end_x < width and 0 <= main_end_y < height:
+                self._draw_line(img, cx, cy, main_end_x, main_end_y, (180, 180, 180))
+
+            # Draw arc from main root to lateral
+            num_points = 20
+            for i in range(num_points + 1):
+                t = i / num_points
+                a = math.radians(main_angle + t * (lat_angle - main_angle))
+                x = int(cx + arc_radius * math.cos(a))
+                y = int(cy + arc_radius * math.sin(a))
+                if 0 <= x < width and 0 <= y < height:
+                    self._draw_circle(img, x, y, 1, arc_color)
+
+            # Draw lateral direction line
+            lat_end_x = int(cx + 35 * math.cos(math.radians(lat_angle)))
+            lat_end_y = int(cy + 35 * math.sin(math.radians(lat_angle)))
+            if 0 <= lat_end_x < width and 0 <= lat_end_y < height:
+                self._draw_line(img, cx, cy, lat_end_x, lat_end_y, arc_color)
 
     def set_roots(self, roots: List[Dict]):
         """Set all root data to display."""
@@ -359,50 +475,86 @@ class ImageCanvas(QGraphicsView):
                 self._highlighted_lateral = found
                 self._update_display()
 
-        # Show tooltip when hovering over roots or laterals
+        # Show tooltip and angle visualization when hovering over roots or laterals
         if self._image is not None and self._root_measurements:
-            tooltip = self._get_tooltip_at(x, y)
+            tooltip, hovered_item = self._get_tooltip_and_hover_data(x, y)
             if tooltip:
                 QToolTip.showText(event.globalPosition().toPoint(), tooltip, self)
+                if hovered_item != self._hovered_item:
+                    self._hovered_item = hovered_item
+                    self._update_display()
             else:
                 QToolTip.hideText()
+                if self._hovered_item is not None:
+                    self._hovered_item = None
+                    self._update_display()
 
         super().mouseMoveEvent(event)
 
-    def _get_tooltip_at(self, x: int, y: int, tolerance: int = 8) -> Optional[str]:
-        """Get tooltip text for item at position."""
+    def _get_tooltip_and_hover_data(self, x: int, y: int, tolerance: int = 8) -> Tuple[Optional[str], Optional[Dict]]:
+        """Get tooltip text and hover data for item at position."""
         # Check laterals first (smaller, on top)
         for root in self._roots:
             root_id = root.get('id', 0)
+            main_points = root.get('points', [])
             for lat in root.get('laterals', []):
                 lat_id = lat.get('id', 0)
-                for px, py in lat.get('points', []):
+                lat_points = lat.get('points', [])
+                for px, py in lat_points:
                     if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
                         # Found lateral
+                        tooltip = f"Lateral {lat_id}"
+                        hover_data = None
+
                         if root_id in self._root_measurements:
                             lat_data = self._root_measurements[root_id].get('laterals', {})
                             if lat_id in lat_data:
                                 data = lat_data[lat_id]
-                                return (f"Lateral {lat_id}\n"
-                                       f"Length: {data.get('length', 0):.3f} {self._unit}\n"
-                                       f"Angle: {data.get('angle', 0):.1f}°")
-                        return f"Lateral {lat_id}"
+                                tooltip = (f"Lateral {lat_id}\n"
+                                          f"Length: {data.get('length', 0):.3f} {self._unit}\n"
+                                          f"Angle: {data.get('angle', 0):.1f}°")
+
+                                # Create hover data for visualization
+                                hover_data = {
+                                    'type': 'lateral',
+                                    'root_id': root_id,
+                                    'lat_id': lat_id,
+                                    'points': lat_points,
+                                    'angle': data.get('angle', 0),
+                                    'main_root_points': main_points,
+                                    'branch_idx': lat.get('start_index', 0)
+                                }
+
+                        return tooltip, hover_data
 
         # Check main roots
         for root in self._roots:
             root_id = root.get('id', 0)
-            for px, py in root.get('points', []):
+            root_points = root.get('points', [])
+            for px, py in root_points:
                 if abs(px - x) <= tolerance and abs(py - y) <= tolerance:
                     # Found main root
+                    tooltip = f"Root {root_id}"
+                    hover_data = None
+
                     if root_id in self._root_measurements:
                         data = self._root_measurements[root_id]
-                        return (f"Root {root_id}\n"
-                               f"Length: {data.get('length', 0):.3f} {self._unit}\n"
-                               f"Angle: {data.get('angle', 0):.1f}°\n"
-                               f"Laterals: {data.get('lat_count', 0)}")
-                    return f"Root {root_id}"
+                        tooltip = (f"Root {root_id}\n"
+                                  f"Length: {data.get('length', 0):.3f} {self._unit}\n"
+                                  f"Angle: {data.get('angle', 0):.1f}°\n"
+                                  f"Laterals: {data.get('lat_count', 0)}")
 
-        return None
+                        # Create hover data for visualization
+                        hover_data = {
+                            'type': 'root',
+                            'root_id': root_id,
+                            'points': root_points,
+                            'angle': data.get('angle', 0)
+                        }
+
+                    return tooltip, hover_data
+
+        return None, None
 
     def _find_lateral_near(self, x: int, y: int, tolerance: int = 10) -> Optional[Tuple[int, int]]:
         """Find lateral near a point."""

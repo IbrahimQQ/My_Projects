@@ -969,3 +969,83 @@ class MeasurementCalculator:
             return 0.0
 
         return np.degrees(np.arctan2(dx, dy))
+
+    @staticmethod
+    def classify_lateral_side(main_root_points: List[Tuple[int, int]],
+                              lateral_points: List[Tuple[int, int]],
+                              branch_index: int) -> str:
+        """
+        Determine if a lateral is on the left or right side of the main root.
+
+        Returns:
+            'left', 'right', or 'unknown'
+        """
+        if len(main_root_points) < 2 or len(lateral_points) < 2:
+            return 'unknown'
+
+        # Get main root direction at branch point
+        idx = branch_index
+        if idx < len(main_root_points) - 1:
+            main_dx = main_root_points[idx + 1][0] - main_root_points[idx][0]
+            main_dy = main_root_points[idx + 1][1] - main_root_points[idx][1]
+        elif idx > 0:
+            main_dx = main_root_points[idx][0] - main_root_points[idx - 1][0]
+            main_dy = main_root_points[idx][1] - main_root_points[idx - 1][1]
+        else:
+            return 'unknown'
+
+        # Get initial lateral direction
+        lat_dx = lateral_points[1][0] - lateral_points[0][0]
+        lat_dy = lateral_points[1][1] - lateral_points[0][1]
+
+        # Cross product to determine side (positive = right, negative = left)
+        # In image coordinates, y increases downward
+        cross = main_dx * lat_dy - main_dy * lat_dx
+
+        if cross > 0:
+            return 'right'
+        elif cross < 0:
+            return 'left'
+        else:
+            return 'unknown'
+
+    @staticmethod
+    def calculate_left_right_lateral_angles(main_root_points: List[Tuple[int, int]],
+                                            laterals: List[Dict]) -> Dict[str, float]:
+        """
+        Calculate mean lateral angles for left and right sides separately.
+
+        Returns:
+            Dict with 'left_mean', 'right_mean', 'left_count', 'right_count'
+        """
+        left_angles = []
+        right_angles = []
+
+        for lat in laterals:
+            lat_points = lat.get('points', [])
+            branch_idx = lat.get('start_index', 0)
+
+            if len(lat_points) < 2:
+                continue
+
+            # Determine side
+            side = MeasurementCalculator.classify_lateral_side(
+                main_root_points, lat_points, branch_idx
+            )
+
+            # Calculate angle
+            angle = MeasurementCalculator.calculate_lateral_angle(
+                main_root_points, lat_points, branch_idx
+            )
+
+            if side == 'left':
+                left_angles.append(angle)
+            elif side == 'right':
+                right_angles.append(angle)
+
+        return {
+            'left_mean': np.mean(left_angles) if left_angles else 0.0,
+            'right_mean': np.mean(right_angles) if right_angles else 0.0,
+            'left_count': len(left_angles),
+            'right_count': len(right_angles)
+        }

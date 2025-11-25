@@ -195,9 +195,9 @@ class MainWindow(QMainWindow):
         measure_layout = QVBoxLayout(measure_group)
 
         self._tbl_measurements = QTableWidget()
-        self._tbl_measurements.setColumnCount(8)
+        self._tbl_measurements.setColumnCount(10)
         self._tbl_measurements.setHorizontalHeaderLabels([
-            "Slice", "Root#", "Length", "Angle", "Lat.Cnt", "Lat.Len", "Density", "Lat/Unit"
+            "Slice", "Root#", "Length", "Angle", "Lat.Cnt", "Lat.Len", "Density", "Lat/Unit", "L-Ang", "R-Ang"
         ])
         self._tbl_measurements.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._tbl_measurements.setMinimumHeight(150)
@@ -526,6 +526,9 @@ class MainWindow(QMainWindow):
                 # Lateral length per unit root = total lat length / root length
                 lat_per_unit = total_lat_length / root_length if root_length > 0 else 0
 
+                # Left/right lateral angles
+                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(main_points, laterals)
+
                 all_data.append({
                     'slice': slice_name,
                     'root': root_id,
@@ -535,6 +538,8 @@ class MainWindow(QMainWindow):
                     'lat_length': total_lat_length,
                     'density': lat_density,
                     'lat_per_unit': lat_per_unit,
+                    'left_angle': lr_angles['left_mean'],
+                    'right_angle': lr_angles['right_mean'],
                 })
 
         # Populate table
@@ -548,6 +553,8 @@ class MainWindow(QMainWindow):
             self._tbl_measurements.setItem(i, 5, QTableWidgetItem(f"{row['lat_length']:.3f}"))
             self._tbl_measurements.setItem(i, 6, QTableWidgetItem(f"{row['density']:.3f}"))
             self._tbl_measurements.setItem(i, 7, QTableWidgetItem(f"{row['lat_per_unit']:.3f}"))
+            self._tbl_measurements.setItem(i, 8, QTableWidgetItem(f"{row['left_angle']:.1f}"))
+            self._tbl_measurements.setItem(i, 9, QTableWidgetItem(f"{row['right_angle']:.1f}"))
 
     def _save_current_slice_data(self):
         """Save current slice data - ISOLATED from other slices."""
@@ -882,9 +889,13 @@ class MainWindow(QMainWindow):
                 main_points = root.get('points', [])
                 main_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
                 root_angle = self._measurement_calc.calculate_root_angle(main_points)
+                laterals = root.get('laterals', [])
+
+                # Calculate left/right lateral angles
+                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(main_points, laterals)
 
                 lateral_data = []
-                for lat in root.get('laterals', []):
+                for lat in laterals:
                     lat_length = self._measurement_calc.calculate_path_length(
                         lat.get('points', []), pixels_per_unit
                     )
@@ -906,7 +917,8 @@ class MainWindow(QMainWindow):
                     'main_root_points': main_points,
                     'main_root_length': main_length,
                     'root_angle': root_angle,
-                    'lateral_roots': lateral_data
+                    'lateral_roots': lateral_data,
+                    'lr_angles': lr_angles
                 })
 
         return export_data
