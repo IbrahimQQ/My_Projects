@@ -1010,10 +1010,42 @@ class MeasurementCalculator:
             return 'unknown'
 
     @staticmethod
+    def calculate_lateral_tip_angle(lateral_points: List[Tuple[int, int]]) -> float:
+        """
+        Calculate the angle of a lateral root at its tip (growth direction).
+        Similar to main root angle - measures from vertical.
+
+        Returns:
+            Angle in degrees from vertical (-180 to 180, 0 = straight down)
+        """
+        if len(lateral_points) < 2:
+            return 0.0
+
+        # Use start and end points for overall direction
+        x1, y1 = lateral_points[0]
+        x2, y2 = lateral_points[-1]
+
+        dx = x2 - x1
+        dy = y2 - y1
+
+        if dx == 0 and dy == 0:
+            return 0.0
+
+        # Calculate angle from vertical (positive y is down in image coords)
+        angle = np.degrees(np.arctan2(dx, dy))
+        return angle
+
+    @staticmethod
     def calculate_left_right_lateral_angles(main_root_points: List[Tuple[int, int]],
-                                            laterals: List[Dict]) -> Dict[str, float]:
+                                            laterals: List[Dict],
+                                            use_tip_angle: bool = False) -> Dict[str, float]:
         """
         Calculate mean lateral angles for left and right sides separately.
+
+        Args:
+            main_root_points: Points of the main root
+            laterals: List of lateral root data
+            use_tip_angle: If True, use tip angle (growth direction). If False, use branch angle.
 
         Returns:
             Dict with 'left_mean', 'right_mean', 'left_count', 'right_count'
@@ -1033,10 +1065,13 @@ class MeasurementCalculator:
                 main_root_points, lat_points, branch_idx
             )
 
-            # Calculate angle
-            angle = MeasurementCalculator.calculate_lateral_angle(
-                main_root_points, lat_points, branch_idx
-            )
+            # Calculate angle based on mode
+            if use_tip_angle:
+                angle = MeasurementCalculator.calculate_lateral_tip_angle(lat_points)
+            else:
+                angle = MeasurementCalculator.calculate_lateral_angle(
+                    main_root_points, lat_points, branch_idx
+                )
 
             if side == 'left':
                 left_angles.append(angle)

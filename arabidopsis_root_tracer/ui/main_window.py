@@ -177,17 +177,30 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(roots_group)
 
         # Scale settings
-        scale_group = QGroupBox("Scale")
-        scale_layout = QHBoxLayout(scale_group)
+        scale_group = QGroupBox("Scale & Angle Mode")
+        scale_layout = QVBoxLayout(scale_group)
+
+        # Scale controls
+        scale_row = QHBoxLayout()
         self._spin_pixels_per_unit = QDoubleSpinBox()
         self._spin_pixels_per_unit.setRange(0.1, 10000)
         self._spin_pixels_per_unit.setValue(161.0)
         self._spin_pixels_per_unit.setDecimals(1)
-        scale_layout.addWidget(self._spin_pixels_per_unit)
-        scale_layout.addWidget(QLabel("px /"))
+        scale_row.addWidget(self._spin_pixels_per_unit)
+        scale_row.addWidget(QLabel("px /"))
         self._cmb_unit = QComboBox()
         self._cmb_unit.addItems(["cm", "mm", "um", "inch"])
-        scale_layout.addWidget(self._cmb_unit)
+        scale_row.addWidget(self._cmb_unit)
+        scale_layout.addLayout(scale_row)
+
+        # Lateral angle mode
+        self._chk_lateral_tip_angle = QCheckBox("LR Tip Angle (vs Branch Angle)")
+        self._chk_lateral_tip_angle.setToolTip(
+            "Checked: Measure lateral angle at tip (growth direction)\n"
+            "Unchecked: Measure lateral angle at branch point"
+        )
+        scale_layout.addWidget(self._chk_lateral_tip_angle)
+
         right_layout.addWidget(scale_group)
 
         # Measurements table - new format
@@ -367,9 +380,10 @@ class MainWindow(QMainWindow):
         self._btn_delete_root.clicked.connect(self._on_delete_selected_root)
         self._btn_trace_all_laterals.clicked.connect(self._on_trace_all_laterals)
 
-        # Scale changes
+        # Scale and angle mode changes
         self._spin_pixels_per_unit.valueChanged.connect(self._update_measurements_table)
         self._cmb_unit.currentIndexChanged.connect(self._update_measurements_table)
+        self._chk_lateral_tip_angle.stateChanged.connect(self._on_lateral_angle_mode_changed)
 
         # Export
         self._btn_export_all.clicked.connect(self._on_export_all)
@@ -461,6 +475,7 @@ class MainWindow(QMainWindow):
         pixels_per_unit = self._spin_pixels_per_unit.value()
         unit = self._cmb_unit.currentText()
         roots = self._root_tracer.get_all_roots()
+        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
 
         measurements = {}
         for root in roots:
@@ -476,9 +491,15 @@ class MainWindow(QMainWindow):
                 lat_id = lat.get('id', 0)
                 lat_points = lat.get('points', [])
                 lat_length = self._measurement_calc.calculate_path_length(lat_points, pixels_per_unit)
-                lat_angle = self._measurement_calc.calculate_lateral_angle(
-                    main_points, lat_points, lat.get('start_index', 0)
-                )
+
+                # Use tip angle or branch angle based on checkbox
+                if use_tip_angle:
+                    lat_angle = self._measurement_calc.calculate_lateral_tip_angle(lat_points)
+                else:
+                    lat_angle = self._measurement_calc.calculate_lateral_angle(
+                        main_points, lat_points, lat.get('start_index', 0)
+                    )
+
                 lat_data[lat_id] = {'length': lat_length, 'angle': lat_angle}
 
             measurements[root_id] = {
@@ -500,6 +521,7 @@ class MainWindow(QMainWindow):
 
         pixels_per_unit = self._spin_pixels_per_unit.value()
         unit = self._cmb_unit.currentText()
+        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
 
         for slice_idx in sorted(self._slice_data.keys()):
             roots = self._slice_data[slice_idx]
@@ -526,8 +548,10 @@ class MainWindow(QMainWindow):
                 # Lateral length per unit root = total lat length / root length
                 lat_per_unit = total_lat_length / root_length if root_length > 0 else 0
 
-                # Left/right lateral angles
-                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(main_points, laterals)
+                # Left/right lateral angles - use tip angle or branch angle based on checkbox
+                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(
+                    main_points, laterals, use_tip_angle=use_tip_angle
+                )
 
                 all_data.append({
                     'slice': slice_name,
@@ -793,6 +817,16 @@ class MainWindow(QMainWindow):
         self._statusbar.showMessage("Invert changed - re-click start point to trace")
 
     @Slot(int)
+    def _on_lateral_angle_mode_changed(self, state: int):
+        """Handle lateral angle mode change (branch angle vs tip angle)."""
+        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        mode_name = "tip angle" if use_tip_angle else "branch angle"
+        self._statusbar.showMessage(f"Lateral angle mode: {mode_name}")
+        # Update canvas measurements and table
+        self._update_canvas_measurements()
+        self._update_measurements_table()
+
+    @Slot(int)
     def _on_root_selected(self, row: int):
         if row >= 0:
             item = self._list_roots.item(row)
@@ -880,6 +914,7 @@ class MainWindow(QMainWindow):
         self._save_current_slice_data()
         export_data = []
         pixels_per_unit = self._spin_pixels_per_unit.value()
+        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
 
         for slice_idx in sorted(self._slice_data.keys()):
             roots = self._slice_data[slice_idx]
@@ -891,8 +926,10 @@ class MainWindow(QMainWindow):
                 root_angle = self._measurement_calc.calculate_root_angle(main_points)
                 laterals = root.get('laterals', [])
 
-                # Calculate left/right lateral angles
-                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(main_points, laterals)
+                # Calculate left/right lateral angles - use tip angle or branch angle based on checkbox
+                lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(
+                    main_points, laterals, use_tip_angle=use_tip_angle
+                )
 
                 lateral_data = []
                 for lat in laterals:
