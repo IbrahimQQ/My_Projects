@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const platformController = require('../controllers/platform.controller');
-const { authenticateToken, authorizeRoles } = require('../middleware/auth.middleware');
+const { authenticate, authorize } = require('../middleware/auth.middleware');
 
 // All platform routes require superadmin authentication
-router.use(authenticateToken);
-router.use(authorizeRoles('superadmin'));
+router.use(authenticate);
+router.use(authorize('superadmin'));
 
 // User management
 router.get('/users', platformController.getAllUsers);

@@ -6,40 +6,22 @@
  */
 
 const bcrypt = require('bcryptjs');
-const { sequelize } = require('./models');
-const { DataTypes } = require('sequelize');
-
-// Define School model for seeding
-const School = sequelize.define('School', {
-  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-  name: { type: DataTypes.STRING, allowNull: false },
-  code: { type: DataTypes.STRING, unique: true, allowNull: false },
-  subdomain: { type: DataTypes.STRING, unique: true },
-  email: { type: DataTypes.STRING, allowNull: false },
-  phone: DataTypes.STRING,
-  address: DataTypes.TEXT,
-  city: DataTypes.STRING,
-  state: DataTypes.STRING,
-  country: { type: DataTypes.STRING, defaultValue: 'USA' },
-  plan: { type: DataTypes.STRING, defaultValue: 'standard' },
-  maxStudents: { type: DataTypes.INTEGER, defaultValue: 500 },
-  maxTeachers: { type: DataTypes.INTEGER, defaultValue: 50 },
-  subscriptionStartDate: DataTypes.DATEONLY,
-  subscriptionEndDate: DataTypes.DATEONLY,
-  isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
-  settings: { type: DataTypes.JSONB, defaultValue: {} },
-  features: { type: DataTypes.JSONB, defaultValue: {} }
-}, { tableName: 'Schools' });
-
-const { User, AcademicYear, Term, Class, Subject, TeacherProfile, Student, ParentProfile, TeacherSubject, StudentSubject, FeeStructure } = require('./models');
+const { sequelize, School, User, AcademicYear, Term, Class, Subject, TeacherProfile, Student, ParentProfile, TeacherSubject, StudentSubject, FeeStructure } = require('./models');
 
 const seed = async () => {
   try {
     console.log('🌱 Starting multi-tenant seed...\n');
 
-    // Sync database
-    await sequelize.sync({ force: true });
-    console.log('✓ Database synced\n');
+    // Drop all tables and recreate
+    await sequelize.drop();
+    console.log('✓ Dropped all tables');
+
+    // Sync in correct order: School first (no dependencies), then others
+    await School.sync();
+    console.log('✓ School table created');
+
+    await sequelize.sync();
+    console.log('✓ All tables created\n');
 
     const hashedPassword = await bcrypt.hash('password123', 10);
     const now = new Date();
