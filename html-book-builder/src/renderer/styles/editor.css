@@ -1,12 +1,13 @@
 /* Editor View */
 .editor-container {
     display: grid;
-    grid-template-columns: var(--sidebar-width) 1fr var(--inspector-width);
+    grid-template-columns: 1fr var(--inspector-width);
     height: 100%;
 }
 
 /* Chapter Sidebar */
 .chapter-sidebar {
+    display: none; /* Hidden - using dropdown instead */
     background-color: var(--surface-color);
     border-right: 1px solid var(--border-color);
     overflow-y: auto;

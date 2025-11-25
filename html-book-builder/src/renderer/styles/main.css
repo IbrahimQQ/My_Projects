@@ -229,6 +229,36 @@ input[type="range"]::-webkit-slider-thumb {
     border-radius: var(--radius-sm);
 }
 
+.chapter-dropdown-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 16px;
+}
+
+.chapter-dropdown {
+    padding: 6px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    min-width: 180px;
+    transition: border-color var(--transition-fast);
+}
+
+.chapter-dropdown:hover {
+    border-color: var(--primary-color);
+}
+
+.chapter-dropdown:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
 .toolbar-center {
     display: flex;
     align-items: center;
