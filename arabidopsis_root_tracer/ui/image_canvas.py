@@ -21,6 +21,7 @@ class ImageCanvas(QGraphicsView):
     delete_requested = Signal(int, int)  # x, y for delete mode
     manual_lateral_point = Signal(int, int)  # x, y for manual lateral mode
     angle_point = Signal(int, int)  # x, y for angle measurement mode
+    crop_rect_changed = Signal(int, int, int, int)  # x1, y1, x2, y2 for crop rectangle
     zoom_changed = Signal(float)  # zoom level
 
     # Interaction modes
@@ -29,6 +30,7 @@ class ImageCanvas(QGraphicsView):
     MODE_DELETE = "delete"  # Click to delete lateral
     MODE_MANUAL_LATERAL = "manual_lateral"  # Click start then end of lateral
     MODE_ANGLE_MEASURE = "angle_measure"  # Click 3 points to measure angle
+    MODE_CROP_RECT = "crop_rect"  # Draw rectangle for clear outside
     MODE_PAN = "pan"  # Pan mode
 
     def __init__(self, parent=None):
@@ -67,6 +69,12 @@ class ImageCanvas(QGraphicsView):
         # Angle measurement state
         self._angle_points: List[Tuple[int, int]] = []  # Points clicked for angle measurement
         self._angle_measurement: Optional[Dict] = None  # {angle: float, points: List}
+
+        # Crop rectangle state (for clear outside)
+        self._crop_rect: Optional[Tuple[int, int, int, int]] = None  # (x1, y1, x2, y2)
+        self._crop_rect_dragging: bool = False
+        self._crop_rect_drag_corner: Optional[str] = None  # 'tl', 'tr', 'bl', 'br', 'move'
+        self._crop_rect_drag_start: Optional[Tuple[int, int]] = None
 
         # Colors for different roots
         self._root_colors = [
@@ -245,6 +253,10 @@ class ImageCanvas(QGraphicsView):
         # Draw completed angle measurement
         if self._angle_measurement is not None:
             self._draw_angle_measurement(result, self._angle_measurement)
+
+        # Draw crop rectangle
+        if self._crop_rect is not None:
+            self._draw_crop_rect(result, self._crop_rect)
 
         return result
 
@@ -482,6 +494,61 @@ class ImageCanvas(QGraphicsView):
             if 0 <= x < width and 0 <= y < height:
                 self._draw_circle(img, x, y, 1, arc_color)
 
+    def _draw_crop_rect(self, img: np.ndarray, rect: Tuple[int, int, int, int]):
+        """Draw the crop rectangle with handles for resizing."""
+        x1, y1, x2, y2 = rect
+        height, width = img.shape[:2]
+
+        # Ensure coordinates are valid
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
+
+        rect_color = (0, 255, 255)  # Cyan
+        handle_color = (255, 0, 255)  # Magenta
+        outside_color = (100, 100, 100)  # Gray overlay for outside
+
+        # Draw semi-transparent overlay outside rectangle
+        # Top region
+        for y in range(0, min(y1, height)):
+            for x in range(width):
+                img[y, x] = tuple(int(c * 0.5) for c in img[y, x])
+        # Bottom region
+        for y in range(max(y2, 0), height):
+            for x in range(width):
+                img[y, x] = tuple(int(c * 0.5) for c in img[y, x])
+        # Left region (between top and bottom)
+        for y in range(max(y1, 0), min(y2, height)):
+            for x in range(0, min(x1, width)):
+                img[y, x] = tuple(int(c * 0.5) for c in img[y, x])
+        # Right region (between top and bottom)
+        for y in range(max(y1, 0), min(y2, height)):
+            for x in range(max(x2, 0), width):
+                img[y, x] = tuple(int(c * 0.5) for c in img[y, x])
+
+        # Draw rectangle border
+        # Top edge
+        for x in range(max(0, x1), min(width, x2)):
+            if 0 <= y1 < height:
+                img[y1, x] = rect_color
+            if 0 <= y2 - 1 < height:
+                img[y2 - 1, x] = rect_color
+        # Left and right edges
+        for y in range(max(0, y1), min(height, y2)):
+            if 0 <= x1 < width:
+                img[y, x1] = rect_color
+            if 0 <= x2 - 1 < width:
+                img[y, x2 - 1] = rect_color
+
+        # Draw corner handles
+        handle_size = 8
+        corners = [(x1, y1), (x2, y1), (x1, y2), (x2, y2)]
+        for cx, cy in corners:
+            for dy in range(-handle_size // 2, handle_size // 2 + 1):
+                for dx in range(-handle_size // 2, handle_size // 2 + 1):
+                    px, py = cx + dx, cy + dy
+                    if 0 <= px < width and 0 <= py < height:
+                        img[py, px] = handle_color
+
     def set_roots(self, roots: List[Dict]):
         """Set all root data to display."""
         self._roots = roots
@@ -525,6 +592,15 @@ class ImageCanvas(QGraphicsView):
             'points': points.copy()
         }
         self._update_display()
+
+    def set_crop_rect(self, rect: Optional[Tuple[int, int, int, int]]):
+        """Set the crop rectangle (x1, y1, x2, y2)."""
+        self._crop_rect = rect
+        self._update_display()
+
+    def get_crop_rect(self) -> Optional[Tuple[int, int, int, int]]:
+        """Get the current crop rectangle."""
+        return self._crop_rect
 
     def set_measurements(self, measurements: Dict[int, Dict], pixels_per_unit: float, unit: str):
         """Set measurement data for tooltips."""
@@ -586,6 +662,21 @@ class ImageCanvas(QGraphicsView):
                     elif self._mode == self.MODE_ANGLE_MEASURE:
                         self.angle_point.emit(x, y)
                         return
+                    elif self._mode == self.MODE_CROP_RECT:
+                        # Check if clicking on a corner handle
+                        corner = self._get_crop_rect_corner(x, y)
+                        if corner:
+                            self._crop_rect_dragging = True
+                            self._crop_rect_drag_corner = corner
+                            self._crop_rect_drag_start = (x, y)
+                        else:
+                            # Start new rectangle
+                            self._crop_rect = (x, y, x, y)
+                            self._crop_rect_dragging = True
+                            self._crop_rect_drag_corner = 'br'  # Bottom-right
+                            self._crop_rect_drag_start = (x, y)
+                            self._update_display()
+                        return
 
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -594,16 +685,89 @@ class ImageCanvas(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._crop_rect_dragging:
+                self._crop_rect_dragging = False
+                self._crop_rect_drag_corner = None
+                self._crop_rect_drag_start = None
+                # Emit the final rectangle
+                if self._crop_rect:
+                    x1, y1, x2, y2 = self._crop_rect
+                    # Normalize coordinates
+                    x1, x2 = min(x1, x2), max(x1, x2)
+                    y1, y2 = min(y1, y2), max(y1, y2)
+                    self._crop_rect = (x1, y1, x2, y2)
+                    self.crop_rect_changed.emit(x1, y1, x2, y2)
+
         if event.button() == Qt.MouseButton.MiddleButton:
             if self._mode != self.MODE_PAN:
                 self.setDragMode(QGraphicsView.DragMode.NoDrag)
 
         super().mouseReleaseEvent(event)
 
+    def _get_crop_rect_corner(self, x: int, y: int, tolerance: int = 15) -> Optional[str]:
+        """Check if position is near a crop rectangle corner."""
+        if self._crop_rect is None:
+            return None
+
+        x1, y1, x2, y2 = self._crop_rect
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
+
+        # Check corners
+        if abs(x - x1) < tolerance and abs(y - y1) < tolerance:
+            return 'tl'
+        if abs(x - x2) < tolerance and abs(y - y1) < tolerance:
+            return 'tr'
+        if abs(x - x1) < tolerance and abs(y - y2) < tolerance:
+            return 'bl'
+        if abs(x - x2) < tolerance and abs(y - y2) < tolerance:
+            return 'br'
+        # Check if inside rectangle (for moving)
+        if x1 < x < x2 and y1 < y < y2:
+            return 'move'
+
+        return None
+
     def mouseMoveEvent(self, event):
         """Handle mouse move."""
         scene_pos = self.mapToScene(event.pos())
         x, y = int(scene_pos.x()), int(scene_pos.y())
+
+        # Handle crop rectangle dragging
+        if self._crop_rect_dragging and self._crop_rect is not None:
+            x1, y1, x2, y2 = self._crop_rect
+            corner = self._crop_rect_drag_corner
+
+            if corner == 'tl':
+                self._crop_rect = (x, y, x2, y2)
+            elif corner == 'tr':
+                self._crop_rect = (x1, y, x, y2)
+            elif corner == 'bl':
+                self._crop_rect = (x, y1, x2, y)
+            elif corner == 'br':
+                self._crop_rect = (x1, y1, x, y)
+            elif corner == 'move' and self._crop_rect_drag_start:
+                # Move entire rectangle
+                dx = x - self._crop_rect_drag_start[0]
+                dy = y - self._crop_rect_drag_start[1]
+                self._crop_rect = (x1 + dx, y1 + dy, x2 + dx, y2 + dy)
+                self._crop_rect_drag_start = (x, y)
+
+            self._update_display()
+            return
+
+        # Update cursor for crop mode
+        if self._mode == self.MODE_CROP_RECT and self._image is not None:
+            corner = self._get_crop_rect_corner(x, y)
+            if corner in ('tl', 'br'):
+                self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+            elif corner in ('tr', 'bl'):
+                self.setCursor(Qt.CursorShape.SizeBDiagCursor)
+            elif corner == 'move':
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+            else:
+                self.setCursor(Qt.CursorShape.CrossCursor)
 
         if self._mode == self.MODE_DELETE and self._image is not None:
             found = self._find_lateral_near(x, y)

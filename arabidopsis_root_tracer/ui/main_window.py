@@ -4,7 +4,7 @@ Main window for the Arabidopsis Root Tracer application.
 
 import os
 import copy
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QSlider, QLineEdit, QGroupBox, QTableWidget, QTableWidgetItem,
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._start_end_first: Optional[tuple] = None  # For MODE_START_END
         self._manual_lateral_start: Optional[tuple] = None
         self._angle_points: List[tuple] = []  # For MODE_ANGLE_MEASURE (3 points)
+        self._crop_rect: Optional[Tuple[int, int, int, int]] = None  # For clear outside
 
         # ML components (lazy loaded)
         self._ml_model = None
@@ -119,6 +120,7 @@ class MainWindow(QMainWindow):
         self._radio_delete = QRadioButton("Delete (X) - Click lateral to delete")
         self._radio_manual = QRadioButton("Manual Lateral (M) - Click start, then end")
         self._radio_angle = QRadioButton("Measure Angle (G) - Click 3 pts, 2nd is vertex")
+        self._radio_crop = QRadioButton("Clear Outside (K) - Draw rectangle to keep")
         self._radio_pan = QRadioButton("Pan (P) - Drag to pan")
 
         self._radio_select.setChecked(True)
@@ -127,6 +129,7 @@ class MainWindow(QMainWindow):
         mode_layout.addWidget(self._radio_delete)
         mode_layout.addWidget(self._radio_manual)
         mode_layout.addWidget(self._radio_angle)
+        mode_layout.addWidget(self._radio_crop)
         mode_layout.addWidget(self._radio_pan)
 
         right_layout.addWidget(mode_group)
@@ -268,7 +271,7 @@ class MainWindow(QMainWindow):
         # Shortcuts help
         help_label = QLabel(
             "<small><b>Keys:</b> S=Click Start, E=Start+End, T=Trace, "
-            "L=Laterals, X=Delete, M=Manual, G=Angle, P=Pan, A/D=Slice, Esc=Cancel</small>"
+            "L=Laterals, X=Delete, M=Manual, G=Angle, K=Crop, P=Pan, A/D=Slice</small>"
         )
         help_label.setWordWrap(True)
         right_layout.addWidget(help_label)
@@ -289,11 +292,25 @@ class MainWindow(QMainWindow):
         export_action.setShortcut(QKeySequence("Ctrl+E"))
         export_action.triggered.connect(self._on_export_all)
         file_menu.addAction(export_action)
+
+        import_points_action = QAction("&Import Points...", self)
+        import_points_action.triggered.connect(self._on_import_points)
+        file_menu.addAction(import_points_action)
+
         file_menu.addSeparator()
         exit_action = QAction("E&xit", self)
         exit_action.setShortcut(QKeySequence.StandardKey.Quit)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+
+        # Image menu
+        image_menu = menubar.addMenu("&Image")
+        clear_outside_action = QAction("&Clear Outside Rectangle (Apply)", self)
+        clear_outside_action.triggered.connect(self._on_apply_clear_outside)
+        image_menu.addAction(clear_outside_action)
+        cancel_crop_action = QAction("Cancel &Rectangle", self)
+        cancel_crop_action.triggered.connect(self._on_cancel_crop_rect)
+        image_menu.addAction(cancel_crop_action)
 
         view_menu = menubar.addMenu("&View")
         fit_action = QAction("&Fit to Window (F)", self)
@@ -346,6 +363,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("X"), self, lambda: self._set_mode("delete"))
         QShortcut(QKeySequence("M"), self, lambda: self._set_mode("manual"))
         QShortcut(QKeySequence("G"), self, lambda: self._set_mode("angle"))  # Angle measurement
+        QShortcut(QKeySequence("K"), self, lambda: self._set_mode("crop"))  # Crop/clear outside
         QShortcut(QKeySequence("P"), self, lambda: self._set_mode("pan"))
         QShortcut(QKeySequence("L"), self, self._on_trace_laterals)
         QShortcut(QKeySequence("Shift+L"), self, self._on_trace_all_laterals)
@@ -364,6 +382,7 @@ class MainWindow(QMainWindow):
         self._canvas.delete_requested.connect(self._on_delete_requested)
         self._canvas.manual_lateral_point.connect(self._on_manual_lateral_point)
         self._canvas.angle_point.connect(self._on_angle_point)
+        self._canvas.crop_rect_changed.connect(self._on_crop_rect_changed)
 
         # Mode radio buttons
         self._radio_select.toggled.connect(lambda c: c and self._set_mode("select"))
@@ -371,6 +390,7 @@ class MainWindow(QMainWindow):
         self._radio_delete.toggled.connect(lambda c: c and self._set_mode("delete"))
         self._radio_manual.toggled.connect(lambda c: c and self._set_mode("manual"))
         self._radio_angle.toggled.connect(lambda c: c and self._set_mode("angle"))
+        self._radio_crop.toggled.connect(lambda c: c and self._set_mode("crop"))
         self._radio_pan.toggled.connect(lambda c: c and self._set_mode("pan"))
 
         # Slice navigation
@@ -417,6 +437,7 @@ class MainWindow(QMainWindow):
             "delete": (ImageCanvas.MODE_DELETE, self._radio_delete, "Delete"),
             "manual": (ImageCanvas.MODE_MANUAL_LATERAL, self._radio_manual, "Manual"),
             "angle": (ImageCanvas.MODE_ANGLE_MEASURE, self._radio_angle, "Angle"),
+            "crop": (ImageCanvas.MODE_CROP_RECT, self._radio_crop, "Crop"),
             "pan": (ImageCanvas.MODE_PAN, self._radio_pan, "Pan"),
         }
 
@@ -438,6 +459,7 @@ class MainWindow(QMainWindow):
                 "delete": "Click on a lateral to delete it",
                 "manual": "Click start near main root, then click end",
                 "angle": "Click 3 points to measure angle (2nd point is vertex)",
+                "crop": "Draw rectangle, then Image > Clear Outside to apply to all slices",
                 "pan": "Drag to pan the view",
             }
             self._statusbar.showMessage(messages.get(mode, ""))
@@ -826,6 +848,181 @@ class MainWindow(QMainWindow):
             self._angle_points = []
             self._canvas.set_angle_points([])
 
+    @Slot(int, int, int, int)
+    def _on_crop_rect_changed(self, x1: int, y1: int, x2: int, y2: int):
+        """Handle crop rectangle change from canvas."""
+        self._crop_rect = (x1, y1, x2, y2)
+        self._statusbar.showMessage(
+            f"Rectangle: ({x1}, {y1}) to ({x2}, {y2}) - "
+            f"Size: {x2-x1}x{y2-y1} - Use Image > Clear Outside to apply"
+        )
+
+    @Slot()
+    def _on_apply_clear_outside(self):
+        """Apply clear outside to all slices."""
+        rect = self._canvas.get_crop_rect()
+        if rect is None:
+            QMessageBox.warning(
+                self, "No Rectangle",
+                "Please draw a rectangle first using the Clear Outside mode (K)"
+            )
+            return
+
+        x1, y1, x2, y2 = rect
+        x1, x2 = min(x1, x2), max(x1, x2)
+        y1, y2 = min(y1, y2), max(y1, y2)
+
+        reply = QMessageBox.question(
+            self, "Clear Outside",
+            f"This will turn everything outside the rectangle ({x1},{y1}) to ({x2},{y2}) "
+            f"to white on ALL {self._image_handler.num_slices} slices.\n\n"
+            "This cannot be undone. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            import numpy as np
+
+            # Apply to all slices
+            for i in range(self._image_handler.num_slices):
+                img = self._image_handler.get_slice(i)
+                if img is not None:
+                    # Create mask - set outside region to white (255)
+                    # Top
+                    img[:y1, :] = 255
+                    # Bottom
+                    img[y2:, :] = 255
+                    # Left
+                    img[y1:y2, :x1] = 255
+                    # Right
+                    img[y1:y2, x2:] = 255
+
+            # Clear the rectangle and refresh display
+            self._canvas.set_crop_rect(None)
+            self._crop_rect = None
+            self._display_current_slice()
+            self._statusbar.showMessage(
+                f"Cleared outside rectangle on {self._image_handler.num_slices} slices"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to apply clear outside: {e}")
+
+    @Slot()
+    def _on_cancel_crop_rect(self):
+        """Cancel the current crop rectangle."""
+        self._canvas.set_crop_rect(None)
+        self._crop_rect = None
+        self._statusbar.showMessage("Rectangle cancelled")
+
+    @Slot()
+    def _on_import_points(self):
+        """Import previously exported points CSV file."""
+        if not self._image_handler.is_loaded:
+            QMessageBox.warning(self, "Warning", "Please open an image first")
+            return
+
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Import Points CSV", "", "CSV Files (*.csv);;All Files (*)"
+        )
+
+        if not file_path:
+            return
+
+        try:
+            import csv
+
+            # Read the CSV file
+            with open(file_path, 'r') as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+
+            if not rows:
+                QMessageBox.warning(self, "Warning", "CSV file is empty")
+                return
+
+            # Group points by slice and root
+            slice_roots = {}  # {slice_name: {root_type_id: [(x, y), ...]}}
+
+            for row in rows:
+                slice_name = row.get('Slice Name', 'Unknown')
+                root_type = row.get('Root Type', 'Main Root')
+                root_id = int(row.get('Root ID', 1))
+                x = int(row.get('X (px)', 0))
+                y = int(row.get('Y (px)', 0))
+
+                if slice_name not in slice_roots:
+                    slice_roots[slice_name] = {}
+
+                key = (root_type, root_id)
+                if key not in slice_roots[slice_name]:
+                    slice_roots[slice_name][key] = []
+
+                slice_roots[slice_name][key].append((x, y))
+
+            # Match slice names to slice indices
+            imported_count = 0
+            for slice_idx in range(self._image_handler.num_slices):
+                slice_name = self._image_handler.get_slice_name(slice_idx)
+
+                # Try to find matching data
+                matching_data = None
+                for csv_slice_name in slice_roots.keys():
+                    # Check if slice name matches (may have _Root suffix)
+                    base_name = csv_slice_name.split('_Root')[0]
+                    if base_name == slice_name or csv_slice_name == slice_name:
+                        matching_data = slice_roots[csv_slice_name]
+                        break
+
+                if matching_data:
+                    roots = []
+                    root_id_counter = 1
+
+                    # First add main roots
+                    for (root_type, rid), points in matching_data.items():
+                        if root_type == 'Main Root' and len(points) > 1:
+                            roots.append({
+                                'id': root_id_counter,
+                                'points': points,
+                                'laterals': []
+                            })
+                            root_id_counter += 1
+                            imported_count += 1
+
+                    # Then add laterals to the first main root (if any)
+                    if roots:
+                        lat_id = 1
+                        for (root_type, rid), points in matching_data.items():
+                            if root_type == 'Lateral Root' and len(points) > 1:
+                                roots[0]['laterals'].append({
+                                    'id': lat_id,
+                                    'points': points,
+                                    'start_index': 0,
+                                    'manual': True
+                                })
+                                lat_id += 1
+
+                    if roots:
+                        self._slice_data[slice_idx] = roots
+
+            # Load current slice data
+            self._load_slice_data(self._image_handler.current_slice)
+            self._update_canvas_display()
+            self._update_root_list()
+            self._update_measurements_table()
+
+            self._statusbar.showMessage(f"Imported {imported_count} roots from {file_path}")
+            QMessageBox.information(
+                self, "Import Complete",
+                f"Imported {imported_count} roots from the CSV file."
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to import points: {e}")
+
     @Slot(float)
     def _on_zoom_changed(self, zoom: float):
         self._lbl_zoom.setText(f"{zoom * 100:.0f}%")
@@ -989,7 +1186,8 @@ class MainWindow(QMainWindow):
         self._save_current_slice_data()
         export_data = []
         pixels_per_unit = self._spin_pixels_per_unit.value()
-        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_lateral_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_main_root_tip_angle = self._chk_main_root_tip_angle.isChecked()
 
         for slice_idx in sorted(self._slice_data.keys()):
             roots = self._slice_data[slice_idx]
@@ -998,12 +1196,18 @@ class MainWindow(QMainWindow):
             for root in roots:
                 main_points = root.get('points', [])
                 main_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
-                root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
+                # Use tip curvature angle or overall angle based on checkbox
+                if use_main_root_tip_angle:
+                    root_angle, _ = self._measurement_calc.calculate_root_tip_angle(main_points)
+                else:
+                    root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
                 laterals = root.get('laterals', [])
 
                 # Calculate left/right lateral angles - use tip angle or branch angle based on checkbox
                 lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(
-                    main_points, laterals, use_tip_angle=use_tip_angle
+                    main_points, laterals, use_tip_angle=use_lateral_tip_angle
                 )
 
                 lateral_data = []
@@ -1011,9 +1215,13 @@ class MainWindow(QMainWindow):
                     lat_length = self._measurement_calc.calculate_path_length(
                         lat.get('points', []), pixels_per_unit
                     )
-                    angle = self._measurement_calc.calculate_lateral_angle(
-                        main_points, lat.get('points', []), lat.get('start_index', 0)
-                    )
+                    # Use tip angle or branch angle based on checkbox
+                    if use_lateral_tip_angle:
+                        angle = self._measurement_calc.calculate_lateral_tip_angle(lat.get('points', []))
+                    else:
+                        angle = self._measurement_calc.calculate_lateral_angle(
+                            main_points, lat.get('points', []), lat.get('start_index', 0)
+                        )
                     branch_pos = self._measurement_calc.get_branch_position(
                         main_points, lat.get('start_index', 0), pixels_per_unit
                     )
