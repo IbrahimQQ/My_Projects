@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         self._start_point: Optional[tuple] = None  # For MODE_SELECT
         self._start_end_first: Optional[tuple] = None  # For MODE_START_END
         self._manual_lateral_start: Optional[tuple] = None
+        self._angle_points: List[tuple] = []  # For MODE_ANGLE_MEASURE (3 points)
 
         # ML components (lazy loaded)
         self._ml_model = None
@@ -117,6 +118,7 @@ class MainWindow(QMainWindow):
         self._radio_start_end = QRadioButton("Start+End (E) - Click start, then click end")
         self._radio_delete = QRadioButton("Delete (X) - Click lateral to delete")
         self._radio_manual = QRadioButton("Manual Lateral (M) - Click start, then end")
+        self._radio_angle = QRadioButton("Measure Angle (G) - Click 3 pts, 2nd is vertex")
         self._radio_pan = QRadioButton("Pan (P) - Drag to pan")
 
         self._radio_select.setChecked(True)
@@ -124,6 +126,7 @@ class MainWindow(QMainWindow):
         mode_layout.addWidget(self._radio_start_end)
         mode_layout.addWidget(self._radio_delete)
         mode_layout.addWidget(self._radio_manual)
+        mode_layout.addWidget(self._radio_angle)
         mode_layout.addWidget(self._radio_pan)
 
         right_layout.addWidget(mode_group)
@@ -193,6 +196,14 @@ class MainWindow(QMainWindow):
         scale_row.addWidget(self._cmb_unit)
         scale_layout.addLayout(scale_row)
 
+        # Main root tip angle mode
+        self._chk_main_root_tip_angle = QCheckBox("Main Root Tip Angle (curvature)")
+        self._chk_main_root_tip_angle.setToolTip(
+            "Checked: Measure angle at tip where curvature begins (∠ABC where B is curvature point)\n"
+            "Unchecked: Measure overall angle from start to end"
+        )
+        scale_layout.addWidget(self._chk_main_root_tip_angle)
+
         # Lateral angle mode
         self._chk_lateral_tip_angle = QCheckBox("LR Tip Angle (vs Branch Angle)")
         self._chk_lateral_tip_angle.setToolTip(
@@ -256,8 +267,8 @@ class MainWindow(QMainWindow):
 
         # Shortcuts help
         help_label = QLabel(
-            "<small><b>Keys:</b> S=Click Start, E=Start+End, T=Trace from start, "
-            "L=Laterals, X=Delete, M=Manual, P=Pan, A/D=Slice, F=Fit, Esc=Cancel</small>"
+            "<small><b>Keys:</b> S=Click Start, E=Start+End, T=Trace, "
+            "L=Laterals, X=Delete, M=Manual, G=Angle, P=Pan, A/D=Slice, Esc=Cancel</small>"
         )
         help_label.setWordWrap(True)
         right_layout.addWidget(help_label)
@@ -334,6 +345,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("T"), self, self._on_trace_from_start)  # Trace from clicked start
         QShortcut(QKeySequence("X"), self, lambda: self._set_mode("delete"))
         QShortcut(QKeySequence("M"), self, lambda: self._set_mode("manual"))
+        QShortcut(QKeySequence("G"), self, lambda: self._set_mode("angle"))  # Angle measurement
         QShortcut(QKeySequence("P"), self, lambda: self._set_mode("pan"))
         QShortcut(QKeySequence("L"), self, self._on_trace_laterals)
         QShortcut(QKeySequence("Shift+L"), self, self._on_trace_all_laterals)
@@ -351,12 +363,14 @@ class MainWindow(QMainWindow):
         self._canvas.start_end_point.connect(self._on_start_end_point)
         self._canvas.delete_requested.connect(self._on_delete_requested)
         self._canvas.manual_lateral_point.connect(self._on_manual_lateral_point)
+        self._canvas.angle_point.connect(self._on_angle_point)
 
         # Mode radio buttons
         self._radio_select.toggled.connect(lambda c: c and self._set_mode("select"))
         self._radio_start_end.toggled.connect(lambda c: c and self._set_mode("start_end"))
         self._radio_delete.toggled.connect(lambda c: c and self._set_mode("delete"))
         self._radio_manual.toggled.connect(lambda c: c and self._set_mode("manual"))
+        self._radio_angle.toggled.connect(lambda c: c and self._set_mode("angle"))
         self._radio_pan.toggled.connect(lambda c: c and self._set_mode("pan"))
 
         # Slice navigation
@@ -383,6 +397,7 @@ class MainWindow(QMainWindow):
         # Scale and angle mode changes
         self._spin_pixels_per_unit.valueChanged.connect(self._update_measurements_table)
         self._cmb_unit.currentIndexChanged.connect(self._update_measurements_table)
+        self._chk_main_root_tip_angle.stateChanged.connect(self._on_main_root_angle_mode_changed)
         self._chk_lateral_tip_angle.stateChanged.connect(self._on_lateral_angle_mode_changed)
 
         # Export
@@ -401,6 +416,7 @@ class MainWindow(QMainWindow):
             "start_end": (ImageCanvas.MODE_START_END, self._radio_start_end, "Start+End"),
             "delete": (ImageCanvas.MODE_DELETE, self._radio_delete, "Delete"),
             "manual": (ImageCanvas.MODE_MANUAL_LATERAL, self._radio_manual, "Manual"),
+            "angle": (ImageCanvas.MODE_ANGLE_MEASURE, self._radio_angle, "Angle"),
             "pan": (ImageCanvas.MODE_PAN, self._radio_pan, "Pan"),
         }
 
@@ -411,14 +427,17 @@ class MainWindow(QMainWindow):
             self._lbl_mode.setText(label)
             self._manual_lateral_start = None
             self._start_end_first = None
+            self._angle_points = []
             self._canvas.set_manual_lateral_start(None)
             self._canvas.set_start_end_first(None)
+            self._canvas.set_angle_points([])
 
             messages = {
                 "select": "Click on root start, then press T to trace",
                 "start_end": "Click start of root, then click end of root",
                 "delete": "Click on a lateral to delete it",
                 "manual": "Click start near main root, then click end",
+                "angle": "Click 3 points to measure angle (2nd point is vertex)",
                 "pan": "Drag to pan the view",
             }
             self._statusbar.showMessage(messages.get(mode, ""))
@@ -475,7 +494,8 @@ class MainWindow(QMainWindow):
         pixels_per_unit = self._spin_pixels_per_unit.value()
         unit = self._cmb_unit.currentText()
         roots = self._root_tracer.get_all_roots()
-        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_lateral_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_main_root_tip_angle = self._chk_main_root_tip_angle.isChecked()
 
         measurements = {}
         for root in roots:
@@ -484,7 +504,12 @@ class MainWindow(QMainWindow):
             laterals = root.get('laterals', [])
 
             root_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
-            root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
+            # Use tip curvature angle or overall angle based on checkbox
+            if use_main_root_tip_angle:
+                root_angle, vertex_idx = self._measurement_calc.calculate_root_tip_angle(main_points)
+            else:
+                root_angle = self._measurement_calc.calculate_root_angle(main_points)
 
             lat_data = {}
             for lat in laterals:
@@ -493,7 +518,7 @@ class MainWindow(QMainWindow):
                 lat_length = self._measurement_calc.calculate_path_length(lat_points, pixels_per_unit)
 
                 # Use tip angle or branch angle based on checkbox
-                if use_tip_angle:
+                if use_lateral_tip_angle:
                     lat_angle = self._measurement_calc.calculate_lateral_tip_angle(lat_points)
                 else:
                     lat_angle = self._measurement_calc.calculate_lateral_angle(
@@ -521,7 +546,8 @@ class MainWindow(QMainWindow):
 
         pixels_per_unit = self._spin_pixels_per_unit.value()
         unit = self._cmb_unit.currentText()
-        use_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_lateral_tip_angle = self._chk_lateral_tip_angle.isChecked()
+        use_main_root_tip_angle = self._chk_main_root_tip_angle.isChecked()
 
         for slice_idx in sorted(self._slice_data.keys()):
             roots = self._slice_data[slice_idx]
@@ -533,7 +559,13 @@ class MainWindow(QMainWindow):
                 laterals = root.get('laterals', [])
 
                 root_length = self._measurement_calc.calculate_path_length(main_points, pixels_per_unit)
-                root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
+                # Use tip curvature angle or overall angle based on checkbox
+                if use_main_root_tip_angle:
+                    root_angle, vertex_idx = self._measurement_calc.calculate_root_tip_angle(main_points)
+                else:
+                    root_angle = self._measurement_calc.calculate_root_angle(main_points)
+
                 lat_count = len(laterals)
 
                 total_lat_length = 0
@@ -550,7 +582,7 @@ class MainWindow(QMainWindow):
 
                 # Left/right lateral angles - use tip angle or branch angle based on checkbox
                 lr_angles = self._measurement_calc.calculate_left_right_lateral_angles(
-                    main_points, laterals, use_tip_angle=use_tip_angle
+                    main_points, laterals, use_tip_angle=use_lateral_tip_angle
                 )
 
                 all_data.append({
@@ -609,9 +641,11 @@ class MainWindow(QMainWindow):
         self._start_point = None
         self._start_end_first = None
         self._manual_lateral_start = None
+        self._angle_points = []
         self._canvas.set_start_point(None)
         self._canvas.set_start_end_first(None)
         self._canvas.set_manual_lateral_start(None)
+        self._canvas.set_angle_points([])
         self._set_mode("select")
         self._statusbar.showMessage("Cancelled")
         self._update_ui_state()
@@ -727,6 +761,7 @@ class MainWindow(QMainWindow):
             if self._root_tracer.delete_lateral(root_id, lateral_id):
                 self._update_canvas_display()
                 self._update_root_list()
+                self._update_measurements_table()  # Real-time measurement update
                 self._statusbar.showMessage(f"Deleted lateral {lateral_id}")
 
     @Slot(int, int)
@@ -756,10 +791,40 @@ class MainWindow(QMainWindow):
             if result:
                 self._update_canvas_display()
                 self._update_root_list()
+                self._update_measurements_table()  # Real-time measurement update
                 self._statusbar.showMessage(f"Added lateral to root {current_root_id}")
 
             self._manual_lateral_start = None
             self._canvas.set_manual_lateral_start(None)
+
+    @Slot(int, int)
+    def _on_angle_point(self, x: int, y: int):
+        """Handle click in angle measurement mode."""
+        self._angle_points.append((x, y))
+        self._canvas.set_angle_points(self._angle_points.copy())
+
+        if len(self._angle_points) == 1:
+            self._statusbar.showMessage(f"Point A set at ({x}, {y}) - Click point B (vertex)")
+        elif len(self._angle_points) == 2:
+            self._statusbar.showMessage(f"Vertex B set at ({x}, {y}) - Click point C")
+        elif len(self._angle_points) == 3:
+            # Calculate and display the angle
+            p1, p2, p3 = self._angle_points
+            angle = self._measurement_calc.calculate_three_point_angle(p1, p2, p3)
+
+            # Display result
+            abs_angle = abs(angle)
+            direction = "left" if angle > 0 else "right" if angle < 0 else ""
+            self._statusbar.showMessage(
+                f"Angle: {abs_angle:.1f}° ({direction}bend) - Click to start new measurement"
+            )
+
+            # Store the measurement for display
+            self._canvas.set_angle_measurement(angle, self._angle_points.copy())
+
+            # Reset for next measurement
+            self._angle_points = []
+            self._canvas.set_angle_points([])
 
     @Slot(float)
     def _on_zoom_changed(self, zoom: float):
@@ -815,6 +880,16 @@ class MainWindow(QMainWindow):
     def _on_invert_changed(self, state: int):
         self._root_tracer.set_invert(state != 0)
         self._statusbar.showMessage("Invert changed - re-click start point to trace")
+
+    @Slot(int)
+    def _on_main_root_angle_mode_changed(self, state: int):
+        """Handle main root angle mode change (overall angle vs tip curvature angle)."""
+        use_tip_angle = self._chk_main_root_tip_angle.isChecked()
+        mode_name = "tip curvature angle" if use_tip_angle else "overall angle"
+        self._statusbar.showMessage(f"Main root angle mode: {mode_name}")
+        # Update canvas measurements and table
+        self._update_canvas_measurements()
+        self._update_measurements_table()
 
     @Slot(int)
     def _on_lateral_angle_mode_changed(self, state: int):

@@ -955,6 +955,124 @@ class MeasurementCalculator:
         return angle
 
     @staticmethod
+    def calculate_root_tip_angle(points: List[Tuple[int, int]],
+                                  segment_length: int = 20) -> Tuple[float, Optional[int]]:
+        """
+        Calculate the angle at the root tip where curvature begins.
+
+        The tip is used as part of the angle measurement where:
+        - Point A: A point on the straight portion of the root (before curvature)
+        - Point B: The point where curvature starts (vertex)
+        - Point C: The tip (end of the root)
+
+        This measures the bending angle at the tip.
+
+        Args:
+            points: List of (x, y) points along the root
+            segment_length: Number of points to use for direction calculation
+
+        Returns:
+            Tuple of (angle in degrees, vertex_index) where vertex_index is
+            the index of point B (curvature start). Returns (0.0, None) if
+            no significant curvature detected.
+        """
+        if len(points) < 10:
+            return 0.0, None
+
+        # Find the curvature point by looking for where direction changes significantly
+        # Work backwards from the tip
+        tip_idx = len(points) - 1
+
+        # Calculate direction at tip (using last few points)
+        seg_len = min(segment_length, len(points) // 3)
+        if seg_len < 3:
+            seg_len = 3
+
+        # Direction at tip (C to B direction, from end going backwards)
+        tip_start = max(0, tip_idx - seg_len)
+        tip_dx = points[tip_idx][0] - points[tip_start][0]
+        tip_dy = points[tip_idx][1] - points[tip_start][1]
+        tip_mag = np.sqrt(tip_dx**2 + tip_dy**2)
+        if tip_mag == 0:
+            return 0.0, None
+        tip_dx /= tip_mag
+        tip_dy /= tip_mag
+
+        # Search for curvature point - where direction changes significantly
+        # Start from tip and work backwards
+        curvature_idx = None
+        min_dot_product = 1.0  # Track maximum direction change
+
+        for i in range(tip_idx - seg_len, seg_len, -1):
+            # Calculate direction at this point (using surrounding points)
+            prev_idx = max(0, i - seg_len)
+            next_idx = min(tip_idx, i + seg_len)
+
+            seg_dx = points[next_idx][0] - points[prev_idx][0]
+            seg_dy = points[next_idx][1] - points[prev_idx][1]
+            seg_mag = np.sqrt(seg_dx**2 + seg_dy**2)
+            if seg_mag == 0:
+                continue
+            seg_dx /= seg_mag
+            seg_dy /= seg_mag
+
+            # Dot product measures direction similarity (1 = same, 0 = perpendicular, -1 = opposite)
+            dot = tip_dx * seg_dx + tip_dy * seg_dy
+
+            # Find point with significant direction change from tip
+            if dot < min_dot_product:
+                min_dot_product = dot
+                curvature_idx = i
+
+            # If we find a significant change (angle > ~30 degrees), use this
+            if dot < 0.85:  # cos(30°) ≈ 0.866
+                curvature_idx = i
+                break
+
+        # If no significant curvature found, use a point near the middle-to-end
+        if curvature_idx is None or min_dot_product > 0.95:
+            # Very straight root - use overall angle instead
+            return MeasurementCalculator.calculate_root_angle(points), None
+
+        # Calculate angle ABC where B is the curvature point
+        # A is a point above B (toward root start)
+        # C is the tip
+        a_idx = max(0, curvature_idx - seg_len)
+        b_idx = curvature_idx
+        c_idx = tip_idx
+
+        ax, ay = points[a_idx]
+        bx, by = points[b_idx]
+        cx, cy = points[c_idx]
+
+        # Vector BA (from B to A)
+        ba_x = ax - bx
+        ba_y = ay - by
+        ba_mag = np.sqrt(ba_x**2 + ba_y**2)
+
+        # Vector BC (from B to C)
+        bc_x = cx - bx
+        bc_y = cy - by
+        bc_mag = np.sqrt(bc_x**2 + bc_y**2)
+
+        if ba_mag == 0 or bc_mag == 0:
+            return 0.0, None
+
+        # Calculate angle using dot product
+        dot = (ba_x * bc_x + ba_y * bc_y) / (ba_mag * bc_mag)
+        dot = max(-1, min(1, dot))  # Clamp for numerical stability
+
+        angle = np.degrees(np.arccos(dot))
+
+        # Determine direction of bend using cross product
+        # Positive cross = bend to the left, Negative cross = bend to the right
+        cross = ba_x * bc_y - ba_y * bc_x
+        if cross < 0:
+            angle = -angle
+
+        return angle, b_idx
+
+    @staticmethod
     def calculate_segment_angle(p1: Tuple[int, int], p2: Tuple[int, int]) -> float:
         """
         Calculate angle of a line segment from vertical.
@@ -969,6 +1087,53 @@ class MeasurementCalculator:
             return 0.0
 
         return np.degrees(np.arctan2(dx, dy))
+
+    @staticmethod
+    def calculate_three_point_angle(p1: Tuple[int, int], p2: Tuple[int, int],
+                                     p3: Tuple[int, int]) -> float:
+        """
+        Calculate the angle ∠ABC where B (p2) is the vertex.
+
+        Args:
+            p1: Point A (first point)
+            p2: Point B (vertex - the middle point)
+            p3: Point C (third point)
+
+        Returns:
+            Angle in degrees (0-180). Positive values indicate the angle,
+            sign indicates direction of bend (positive = left, negative = right)
+        """
+        ax, ay = p1
+        bx, by = p2
+        cx, cy = p3
+
+        # Vector BA (from B to A)
+        ba_x = ax - bx
+        ba_y = ay - by
+        ba_mag = np.sqrt(ba_x**2 + ba_y**2)
+
+        # Vector BC (from B to C)
+        bc_x = cx - bx
+        bc_y = cy - by
+        bc_mag = np.sqrt(bc_x**2 + bc_y**2)
+
+        if ba_mag == 0 or bc_mag == 0:
+            return 0.0
+
+        # Calculate angle using dot product
+        dot = (ba_x * bc_x + ba_y * bc_y) / (ba_mag * bc_mag)
+        dot = max(-1, min(1, dot))  # Clamp for numerical stability
+
+        angle = np.degrees(np.arccos(dot))
+
+        # Use cross product to determine direction of bend
+        # Positive cross = bend to the left (counterclockwise from BA to BC)
+        # Negative cross = bend to the right (clockwise from BA to BC)
+        cross = ba_x * bc_y - ba_y * bc_x
+        if cross < 0:
+            angle = -angle
+
+        return angle
 
     @staticmethod
     def classify_lateral_side(main_root_points: List[Tuple[int, int]],

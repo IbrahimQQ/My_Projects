@@ -20,6 +20,7 @@ class ImageCanvas(QGraphicsView):
     start_end_point = Signal(int, int)  # x, y for start_end mode
     delete_requested = Signal(int, int)  # x, y for delete mode
     manual_lateral_point = Signal(int, int)  # x, y for manual lateral mode
+    angle_point = Signal(int, int)  # x, y for angle measurement mode
     zoom_changed = Signal(float)  # zoom level
 
     # Interaction modes
@@ -27,6 +28,7 @@ class ImageCanvas(QGraphicsView):
     MODE_START_END = "start_end"  # Click start, then click end of root
     MODE_DELETE = "delete"  # Click to delete lateral
     MODE_MANUAL_LATERAL = "manual_lateral"  # Click start then end of lateral
+    MODE_ANGLE_MEASURE = "angle_measure"  # Click 3 points to measure angle
     MODE_PAN = "pan"  # Pan mode
 
     def __init__(self, parent=None):
@@ -62,6 +64,10 @@ class ImageCanvas(QGraphicsView):
         # Hover state for angle visualization
         self._hovered_item: Optional[Dict] = None  # {type: 'root'/'lateral', root_id, lat_id, points, angle}
 
+        # Angle measurement state
+        self._angle_points: List[Tuple[int, int]] = []  # Points clicked for angle measurement
+        self._angle_measurement: Optional[Dict] = None  # {angle: float, points: List}
+
         # Colors for different roots
         self._root_colors = [
             (0, 255, 0),    # Green
@@ -92,6 +98,8 @@ class ImageCanvas(QGraphicsView):
         self._mode = mode
         self._manual_lateral_start = None
         self._start_end_first = None
+        self._angle_points = []
+        self._angle_measurement = None
 
         if mode == self.MODE_PAN:
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
@@ -210,6 +218,33 @@ class ImageCanvas(QGraphicsView):
         # Draw angle visualization for hovered item
         if self._hovered_item is not None:
             self._draw_angle_visualization(result, self._hovered_item)
+
+        # Draw angle measurement points
+        if self._angle_points:
+            angle_point_color = (255, 255, 0)  # Yellow
+            vertex_color = (255, 0, 255)  # Magenta for vertex (2nd point)
+            for i, (ax, ay) in enumerate(self._angle_points):
+                color = vertex_color if i == 1 else angle_point_color
+                self._draw_circle(result, ax, ay, 6, color)
+                # Draw labels
+                if i == 0:
+                    self._draw_text_marker(result, ax - 10, ay - 10, "A", angle_point_color)
+                elif i == 1:
+                    self._draw_text_marker(result, ax - 10, ay - 10, "B", vertex_color)
+                elif i == 2:
+                    self._draw_text_marker(result, ax - 10, ay - 10, "C", angle_point_color)
+
+            # Draw lines connecting points
+            if len(self._angle_points) >= 2:
+                p1, p2 = self._angle_points[0], self._angle_points[1]
+                self._draw_line(result, p1[0], p1[1], p2[0], p2[1], angle_point_color)
+            if len(self._angle_points) >= 3:
+                p2, p3 = self._angle_points[1], self._angle_points[2]
+                self._draw_line(result, p2[0], p2[1], p3[0], p3[1], angle_point_color)
+
+        # Draw completed angle measurement
+        if self._angle_measurement is not None:
+            self._draw_angle_measurement(result, self._angle_measurement)
 
         return result
 
@@ -364,6 +399,89 @@ class ImageCanvas(QGraphicsView):
             if 0 <= lat_end_x < width and 0 <= lat_end_y < height:
                 self._draw_line(img, cx, cy, lat_end_x, lat_end_y, arc_color)
 
+    def _draw_text_marker(self, img: np.ndarray, x: int, y: int, text: str,
+                          color: Tuple[int, int, int]):
+        """Draw a simple text marker (just a filled square with letter indication)."""
+        height, width = img.shape[:2]
+        # Draw a small filled square as a marker
+        size = 8
+        for dy in range(-size // 2, size // 2 + 1):
+            for dx in range(-size // 2, size // 2 + 1):
+                px, py = x + dx, y + dy
+                if 0 <= px < width and 0 <= py < height:
+                    # Create a simple letter pattern
+                    if text == "A":
+                        # Simple 'A' pattern
+                        if (abs(dx) == size // 2 and dy > -size // 2) or (dy == -size // 2 and abs(dx) < size // 2) or (dy == 0 and abs(dx) < size // 2):
+                            img[py, px] = color
+                    elif text == "B":
+                        # Simple 'B' pattern
+                        if dx == -size // 2 or (abs(dy) == size // 2 and dx < size // 3) or (dy == 0 and dx < size // 3):
+                            img[py, px] = color
+                    elif text == "C":
+                        # Simple 'C' pattern
+                        if dx == -size // 2 or (abs(dy) == size // 2 and dx < 0):
+                            img[py, px] = color
+
+    def _draw_angle_measurement(self, img: np.ndarray, measurement: Dict):
+        """Draw the completed angle measurement visualization."""
+        import math
+
+        points = measurement.get('points', [])
+        angle = measurement.get('angle', 0)
+
+        if len(points) != 3:
+            return
+
+        height, width = img.shape[:2]
+        p1, p2, p3 = points  # A, B (vertex), C
+
+        # Colors
+        line_color = (0, 255, 255)  # Cyan
+        arc_color = (255, 255, 0)  # Yellow
+        vertex_color = (255, 0, 255)  # Magenta
+
+        # Draw lines BA and BC
+        self._draw_line(img, p2[0], p2[1], p1[0], p1[1], line_color)
+        self._draw_line(img, p2[0], p2[1], p3[0], p3[1], line_color)
+
+        # Draw points
+        self._draw_circle(img, p1[0], p1[1], 5, line_color)
+        self._draw_circle(img, p2[0], p2[1], 7, vertex_color)  # Larger vertex
+        self._draw_circle(img, p3[0], p3[1], 5, line_color)
+
+        # Draw arc at vertex to show angle
+        bx, by = p2
+        ax, ay = p1
+        cx, cy = p3
+
+        # Calculate angles of BA and BC from B
+        angle_ba = math.atan2(ay - by, ax - bx)
+        angle_bc = math.atan2(cy - by, cx - bx)
+
+        # Draw arc from BA to BC
+        arc_radius = 30
+        num_points = 30
+
+        # Ensure we draw the shorter arc
+        start_angle = angle_ba
+        end_angle = angle_bc
+
+        # Normalize angle difference
+        diff = end_angle - start_angle
+        while diff > math.pi:
+            diff -= 2 * math.pi
+        while diff < -math.pi:
+            diff += 2 * math.pi
+
+        for i in range(num_points + 1):
+            t = i / num_points
+            a = start_angle + t * diff
+            x = int(bx + arc_radius * math.cos(a))
+            y = int(by + arc_radius * math.sin(a))
+            if 0 <= x < width and 0 <= y < height:
+                self._draw_circle(img, x, y, 1, arc_color)
+
     def set_roots(self, roots: List[Dict]):
         """Set all root data to display."""
         self._roots = roots
@@ -395,6 +513,19 @@ class ImageCanvas(QGraphicsView):
         self._highlighted_root = root_id
         self._update_display()
 
+    def set_angle_points(self, points: List[Tuple[int, int]]):
+        """Set the points for angle measurement."""
+        self._angle_points = points.copy() if points else []
+        self._update_display()
+
+    def set_angle_measurement(self, angle: float, points: List[Tuple[int, int]]):
+        """Set the completed angle measurement to display."""
+        self._angle_measurement = {
+            'angle': angle,
+            'points': points.copy()
+        }
+        self._update_display()
+
     def set_measurements(self, measurements: Dict[int, Dict], pixels_per_unit: float, unit: str):
         """Set measurement data for tooltips."""
         self._root_measurements = measurements
@@ -408,6 +539,8 @@ class ImageCanvas(QGraphicsView):
         self._manual_lateral_start = None
         self._highlighted_lateral = None
         self._start_end_first = None
+        self._angle_points = []
+        self._angle_measurement = None
         self._update_display()
 
     def wheelEvent(self, event):
@@ -449,6 +582,9 @@ class ImageCanvas(QGraphicsView):
                         return
                     elif self._mode == self.MODE_MANUAL_LATERAL:
                         self.manual_lateral_point.emit(x, y)
+                        return
+                    elif self._mode == self.MODE_ANGLE_MEASURE:
+                        self.angle_point.emit(x, y)
                         return
 
         if event.button() == Qt.MouseButton.MiddleButton:
