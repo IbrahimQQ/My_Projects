@@ -153,7 +153,20 @@ class RootSegmentationModel:
     def load(self, path: str):
         """Load model weights from file."""
         state_dict = torch.load(path, map_location=self.device)
-        self.model.load_state_dict(state_dict)
+
+        # Handle key mismatch from Colab-trained models
+        # Colab model uses: outc.weight/bias
+        # Local model uses: outc.conv.weight/bias
+        new_state_dict = {}
+        for key, value in state_dict.items():
+            if key == 'outc.weight':
+                new_state_dict['outc.conv.weight'] = value
+            elif key == 'outc.bias':
+                new_state_dict['outc.conv.bias'] = value
+            else:
+                new_state_dict[key] = value
+
+        self.model.load_state_dict(new_state_dict)
         self.model.eval()
 
     def save(self, path: str):
