@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Learning App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>🐍 Python Master</h1>
+            </div>
+            <nav class="nav-menu">
+                <button class="nav-item active" data-section="dashboard">
+                    📊 Dashboard
+                </button>
+                <button class="nav-item" data-section="tutorials">
+                    📚 Tutorials
+                </button>
+                <button class="nav-item" data-section="challenges">
+                    💪 Challenges
+                </button>
+                <button class="nav-item" data-section="libraries">
+                    📦 Libraries
+                </button>
+                <button class="nav-item" data-section="progress">
+                    📈 Progress
+                </button>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section active">
+                <h2>Welcome to Python Master!</h2>
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <h3>Concepts Learned</h3>
+                        <div class="stat-value" id="concepts-learned">0</div>
+                        <div class="stat-total">/ 30</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Challenges Solved</h3>
+                        <div class="stat-value" id="challenges-solved">0</div>
+                        <div class="stat-total">/ 50</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Quiz Score</h3>
+                        <div class="stat-value" id="quiz-score">0</div>
+                        <div class="stat-total">%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Libraries Mastered</h3>
+                        <div class="stat-value" id="libraries-learned">0</div>
+                        <div class="stat-total">/ 4</div>
+                    </div>
+                </div>
+                <div class="recent-activity">
+                    <h3>Continue Learning</h3>
+                    <div id="continue-learning"></div>
+                </div>
+            </section>
+
+            <!-- Tutorials Section -->
+            <section id="tutorials" class="content-section">
+                <h2>Python Tutorials</h2>
+                <div class="tutorials-container">
+                    <div class="category-group">
+                        <h3>Basics</h3>
+                        <div class="topic-list" id="basics-topics"></div>
+                    </div>
+                    <div class="category-group">
+                        <h3>Data Structures</h3>
+                        <div class="topic-list" id="data-structures-topics"></div>
+                    </div>
+                    <div class="category-group">
+                        <h3>Advanced Concepts</h3>
+                        <div class="topic-list" id="advanced-topics"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tutorial Detail View -->
+            <section id="tutorial-detail" class="content-section">
+                <button class="back-btn" onclick="app.showSection('tutorials')">← Back to Tutorials</button>
+                <div id="tutorial-content"></div>
+            </section>
+
+            <!-- Quiz Section -->
+            <section id="quiz" class="content-section">
+                <button class="back-btn" onclick="app.backFromQuiz()">← Back</button>
+                <div id="quiz-content"></div>
+            </section>
+
+            <!-- Challenges Section -->
+            <section id="challenges" class="content-section">
+                <h2>Coding Challenges</h2>
+                <div class="difficulty-tabs">
+                    <button class="tab-btn active" data-difficulty="easy">Easy</button>
+                    <button class="tab-btn" data-difficulty="medium">Medium</button>
+                    <button class="tab-btn" data-difficulty="hard">Hard</button>
+                </div>
+                <div id="challenges-list"></div>
+            </section>
+
+            <!-- Challenge Detail View -->
+            <section id="challenge-detail" class="content-section">
+                <button class="back-btn" onclick="app.showSection('challenges')">← Back to Challenges</button>
+                <div id="challenge-content"></div>
+            </section>
+
+            <!-- Libraries Section -->
+            <section id="libraries" class="content-section">
+                <h2>Python Libraries</h2>
+                <div class="libraries-grid">
+                    <div class="library-card" data-library="matplotlib">
+                        <h3>Matplotlib</h3>
+                        <p>Data visualization and plotting library</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" data-progress="matplotlib"></div>
+                        </div>
+                    </div>
+                    <div class="library-card" data-library="seaborn">
+                        <h3>Seaborn</h3>
+                        <p>Statistical data visualization</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" data-progress="seaborn"></div>
+                        </div>
+                    </div>
+                    <div class="library-card" data-library="tensorflow">
+                        <h3>TensorFlow</h3>
+                        <p>Machine learning and deep learning</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" data-progress="tensorflow"></div>
+                        </div>
+                    </div>
+                    <div class="library-card" data-library="sklearn">
+                        <h3>Scikit-learn</h3>
+                        <p>Machine learning algorithms</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" data-progress="sklearn"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Library Detail View -->
+            <section id="library-detail" class="content-section">
+                <button class="back-btn" onclick="app.showSection('libraries')">← Back to Libraries</button>
+                <div id="library-content"></div>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progress" class="content-section">
+                <h2>Your Progress</h2>
+                <div class="progress-overview">
+                    <div class="progress-section">
+                        <h3>Tutorial Progress</h3>
+                        <div id="tutorial-progress-list"></div>
+                    </div>
+                    <div class="progress-section">
+                        <h3>Challenge Progress</h3>
+                        <div id="challenge-progress-list"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

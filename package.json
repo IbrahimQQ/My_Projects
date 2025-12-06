@@ -1,0 +1,17 @@
+{
+  "name": "python-learning-app",
+  "version": "1.0.0",
+  "description": "Interactive Python Learning Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["python", "learning", "education", "electron"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "dependencies": {}
+}
