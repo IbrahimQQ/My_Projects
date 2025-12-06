@@ -35,19 +35,28 @@ class RootTracer:
         self._current_slice_idx: int = 0
 
     def set_image(self, image: np.ndarray, slice_idx: int = 0):
-        """Set the image to trace on."""
+        """Set the image to trace on. Preprocessing is deferred until tracing."""
         self._current_slice_idx = slice_idx
+        # Just store reference - preprocessing happens lazily when tracing
+        self._image = image
 
-        # If skeleton is already cached for this slice, skip expensive preprocessing
+        # Load cached skeleton if available (fast path for revisited slices)
         if slice_idx in self._skeleton_cache:
             self._skeleton = self._skeleton_cache[slice_idx]
             self._binary_mask = self._mask_cache[slice_idx]
-            # Only store image reference if we need it later (for new traces)
-            self._image = image
-            return
+        else:
+            # Clear skeleton - will be computed lazily when needed
+            self._skeleton = None
+            self._binary_mask = None
 
-        # Only copy if we need to preprocess (no cache)
-        self._image = image.copy()
+    def _ensure_preprocessed(self):
+        """Ensure image is preprocessed (lazy preprocessing for tracing)."""
+        if self._skeleton is not None:
+            return  # Already preprocessed
+        if self._image is None:
+            return
+        # Need to copy for preprocessing since we modify it
+        self._image = self._image.copy()
         self._preprocess_image()
 
     def set_threshold(self, threshold: int):
@@ -55,21 +64,21 @@ class RootTracer:
         new_threshold = max(1, min(255, threshold))
         if new_threshold != self._threshold:
             self._threshold = new_threshold
-            # Clear cache when threshold changes
+            # Clear cache when threshold changes - will recompute lazily
             self._skeleton_cache.clear()
             self._mask_cache.clear()
-            if self._image is not None:
-                self._preprocess_image()
+            self._skeleton = None
+            self._binary_mask = None
 
     def set_invert(self, invert: bool):
         """Set whether to invert the image (for black roots on white background)."""
         if invert != self._invert:
             self._invert = invert
-            # Clear cache when invert changes
+            # Clear cache when invert changes - will recompute lazily
             self._skeleton_cache.clear()
             self._mask_cache.clear()
-            if self._image is not None:
-                self._preprocess_image()
+            self._skeleton = None
+            self._binary_mask = None
 
     def _preprocess_image(self):
         """Preprocess image for tracing."""
@@ -120,6 +129,7 @@ class RootTracer:
         Returns:
             Dict with root data {id, points, laterals}
         """
+        self._ensure_preprocessed()
         if self._skeleton is None:
             return {}
 
@@ -317,6 +327,7 @@ class RootTracer:
         Returns:
             List of lateral root dictionaries
         """
+        self._ensure_preprocessed()
         if self._skeleton is None:
             return []
 
@@ -430,6 +441,7 @@ class RootTracer:
         Returns:
             Lateral data dict or None
         """
+        self._ensure_preprocessed()
         if self._skeleton is None:
             return None
 
@@ -688,6 +700,7 @@ class RootTracer:
         Returns:
             List of (x, y) points along the traced path
         """
+        self._ensure_preprocessed()
         if self._skeleton is None:
             return []
 
@@ -715,6 +728,7 @@ class RootTracer:
         Returns:
             List of (x, y) points along the traced path
         """
+        self._ensure_preprocessed()
         if self._skeleton is None:
             return []
 

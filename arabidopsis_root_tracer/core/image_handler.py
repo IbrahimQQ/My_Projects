@@ -31,7 +31,7 @@ class ImageHandler:
         try:
             self._stack = tifffile.imread(file_path)
             self._file_path = file_path
-            self._normalized_cache = {}  # Clear cache
+            self._normalized_cache = {}  # Clear cache - will compute lazily
 
             # Handle single image vs stack
             if self._stack.ndim == 2:
@@ -46,9 +46,6 @@ class ImageHandler:
             elif self._stack.ndim == 4:
                 # Stack of RGB - convert each to grayscale
                 self._stack = np.mean(self._stack, axis=3).astype(np.uint8)
-
-            # Pre-normalize all slices for fast switching
-            self._precompute_normalized()
 
             # Initialize slice names
             self._slice_names = [f"Slice_{i+1}" for i in range(self.num_slices)]
@@ -173,7 +170,7 @@ class ImageHandler:
         if index in self._normalized_cache:
             return self._normalized_cache[index]
 
-        # Fallback: compute on demand
+        # Compute on demand and cache for next access
         img = self.get_slice(index)
         if img is None:
             return None
@@ -181,4 +178,6 @@ class ImageHandler:
         img = img.astype(np.float32)
         if img.max() > img.min():
             img = (img - img.min()) / (img.max() - img.min()) * 255
-        return img.astype(np.uint8)
+        normalized = img.astype(np.uint8)
+        self._normalized_cache[index] = normalized
+        return normalized
