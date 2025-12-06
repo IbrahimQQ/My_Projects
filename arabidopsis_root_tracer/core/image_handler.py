@@ -169,9 +169,9 @@ class ImageHandler:
         if index is None:
             index = self._current_slice
 
-        # Return from cache if available
+        # Return from cache if available (no copy for speed)
         if index in self._normalized_cache:
-            return self._normalized_cache[index].copy()
+            return self._normalized_cache[index]
 
         # Fallback: compute on demand
         img = self.get_slice(index)

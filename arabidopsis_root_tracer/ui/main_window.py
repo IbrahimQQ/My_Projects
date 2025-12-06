@@ -1012,6 +1012,8 @@ class MainWindow(QMainWindow):
                 if matching_data:
                     roots = []
                     root_id_counter = 1
+                    # Map from original CSV Root ID to our new root index
+                    original_id_to_root_idx = {}
 
                     # First add main roots
                     for (root_type, rid), points in matching_data.items():
@@ -1021,27 +1023,33 @@ class MainWindow(QMainWindow):
                                 'points': points,
                                 'laterals': []
                             })
+                            # Map original root ID to index in roots list
+                            original_id_to_root_idx[rid] = len(roots) - 1
                             root_id_counter += 1
                             imported_count += 1
 
-                    # Then add laterals to the first main root (if any)
+                    # Then add laterals to their corresponding main roots
                     if roots:
-                        lat_id = 1
+                        # Track lateral IDs per root
+                        lat_id_per_root = {i: 1 for i in range(len(roots))}
                         for (root_type, rid), points in matching_data.items():
                             if root_type == 'Lateral Root' and len(points) > 1:
-                                roots[0]['laterals'].append({
+                                # Find the corresponding root by original ID
+                                root_idx = original_id_to_root_idx.get(rid, 0)
+                                lat_id = lat_id_per_root[root_idx]
+                                roots[root_idx]['laterals'].append({
                                     'id': lat_id,
                                     'points': points,
                                     'start_index': 0,
                                     'manual': True
                                 })
-                                lat_id += 1
+                                lat_id_per_root[root_idx] += 1
 
                     if roots:
                         self._slice_data[slice_idx] = roots
 
             # Load current slice data
-            self._load_slice_data(self._image_handler.current_slice)
+            self._load_slice_data()
             self._update_canvas_display()
             self._update_root_list()
             self._update_measurements_table()

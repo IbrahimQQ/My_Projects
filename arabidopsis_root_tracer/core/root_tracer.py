@@ -36,8 +36,18 @@ class RootTracer:
 
     def set_image(self, image: np.ndarray, slice_idx: int = 0):
         """Set the image to trace on."""
-        self._image = image.copy()
         self._current_slice_idx = slice_idx
+
+        # If skeleton is already cached for this slice, skip expensive preprocessing
+        if slice_idx in self._skeleton_cache:
+            self._skeleton = self._skeleton_cache[slice_idx]
+            self._binary_mask = self._mask_cache[slice_idx]
+            # Only store image reference if we need it later (for new traces)
+            self._image = image
+            return
+
+        # Only copy if we need to preprocess (no cache)
+        self._image = image.copy()
         self._preprocess_image()
 
     def set_threshold(self, threshold: int):

@@ -76,6 +76,9 @@ class ImageCanvas(QGraphicsView):
         self._crop_rect_drag_corner: Optional[str] = None  # 'tl', 'tr', 'bl', 'br', 'move'
         self._crop_rect_drag_start: Optional[Tuple[int, int]] = None
 
+        # Cache for RGB base image to avoid repeated grayscale-to-RGB conversion
+        self._rgb_base_cache: Optional[np.ndarray] = None
+
         # Colors for different roots
         self._root_colors = [
             (0, 255, 0),    # Green
@@ -126,7 +129,13 @@ class ImageCanvas(QGraphicsView):
 
     def set_image(self, image: np.ndarray):
         """Set the image to display."""
-        self._image = image.copy()
+        # Skip update if same image (compare memory location for speed)
+        if self._image is not None and self._image is image:
+            return
+        # Store reference without copying (source is already cached)
+        self._image = image
+        # Clear RGB cache when image changes
+        self._rgb_base_cache = None
         self._update_display()
 
     def _update_display(self):
@@ -134,17 +143,21 @@ class ImageCanvas(QGraphicsView):
         if self._image is None:
             return
 
-        img = self._image
-        if img.dtype != np.uint8:
-            img = ((img - img.min()) / (img.max() - img.min() + 1e-10) * 255).astype(np.uint8)
+        # Use cached RGB base if available, otherwise create and cache it
+        if self._rgb_base_cache is None:
+            img = self._image
+            if img.dtype != np.uint8:
+                img = ((img - img.min()) / (img.max() - img.min() + 1e-10) * 255).astype(np.uint8)
 
-        height, width = img.shape[:2]
+            if len(img.shape) == 2:
+                self._rgb_base_cache = np.stack([img, img, img], axis=2)
+            else:
+                self._rgb_base_cache = img.copy()
 
-        if len(img.shape) == 2:
-            rgb_img = np.stack([img, img, img], axis=2)
-        else:
-            rgb_img = img.copy()
+        height, width = self._rgb_base_cache.shape[:2]
 
+        # Copy cached RGB base for drawing (tracings modify the image)
+        rgb_img = self._rgb_base_cache.copy()
         rgb_img = self._draw_tracings(rgb_img)
 
         bytes_per_line = 3 * width
