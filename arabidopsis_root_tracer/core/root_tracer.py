@@ -577,18 +577,23 @@ class RootTracer:
                 return True
         return False
 
-    def find_lateral_at_point(self, x: int, y: int, tolerance: int = 10) -> Optional[Tuple[int, int]]:
+    def find_lateral_at_point(self, x: int, y: int, tolerance: int = 10,
+                               root_id: Optional[int] = None) -> Optional[Tuple[int, int]]:
         """
         Find a lateral root near a point.
 
         Args:
             x, y: Point coordinates
             tolerance: Search radius
+            root_id: Optional root ID to filter search to a specific root
 
         Returns:
             Tuple of (root_id, lateral_id) or None
         """
         for root in self._main_roots:
+            # If root_id is specified, only search within that root
+            if root_id is not None and root['id'] != root_id:
+                continue
             for lat in root['laterals']:
                 for px, py in lat['points']:
                     if abs(px - x) <= tolerance and abs(py - y) <= tolerance:

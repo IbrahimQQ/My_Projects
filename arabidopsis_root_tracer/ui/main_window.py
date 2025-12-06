@@ -777,31 +777,63 @@ class MainWindow(QMainWindow):
 
     @Slot(int, int)
     def _on_delete_requested(self, x: int, y: int):
-        result = self._root_tracer.find_lateral_at_point(x, y)
+        # Get the selected root from the UI list
+        selected_root_id = None
+        item = self._list_roots.currentItem()
+        if item:
+            selected_root_id = item.data(Qt.ItemDataRole.UserRole)
+
+        # If a root is selected, only delete laterals from that root
+        if selected_root_id is not None:
+            result = self._root_tracer.find_lateral_at_point(x, y, root_id=selected_root_id)
+        else:
+            # No root selected, search all roots
+            result = self._root_tracer.find_lateral_at_point(x, y)
+
         if result:
             root_id, lateral_id = result
             if self._root_tracer.delete_lateral(root_id, lateral_id):
                 self._update_canvas_display()
                 self._update_root_list()
                 self._update_measurements_table()  # Real-time measurement update
-                self._statusbar.showMessage(f"Deleted lateral {lateral_id}")
+                self._statusbar.showMessage(f"Deleted lateral {lateral_id} from root {root_id}")
+        else:
+            if selected_root_id is not None:
+                self._statusbar.showMessage(f"No lateral found on root {selected_root_id} at that point")
 
     @Slot(int, int)
     def _on_manual_lateral_point(self, x: int, y: int):
         if self._manual_lateral_start is None:
             self._manual_lateral_start = (x, y)
             self._canvas.set_manual_lateral_start((x, y))
-            self._statusbar.showMessage(f"Start at ({x}, {y}) - click end point")
+
+            # Show which root will receive the lateral
+            item = self._list_roots.currentItem()
+            if item:
+                root_id = item.data(Qt.ItemDataRole.UserRole)
+                self._statusbar.showMessage(f"Start at ({x}, {y}) for Root {root_id} - click end point")
+            else:
+                self._statusbar.showMessage(f"Start at ({x}, {y}) - select a root first or click end point")
         else:
-            current_root_id = self._root_tracer.get_current_root_id()
-            if current_root_id == 0:
+            # Get the selected root from the UI list (priority) or from tracer
+            current_root_id = None
+            item = self._list_roots.currentItem()
+            if item:
+                current_root_id = item.data(Qt.ItemDataRole.UserRole)
+
+            # Fallback to tracer's current root if no selection
+            if current_root_id is None:
+                current_root_id = self._root_tracer.get_current_root_id()
+
+            # Last resort: find nearest root
+            if current_root_id == 0 or current_root_id is None:
                 found = self._root_tracer.find_main_root_at_point(
                     self._manual_lateral_start[0], self._manual_lateral_start[1], tolerance=30
                 )
                 if found:
                     current_root_id = found
                 else:
-                    self._statusbar.showMessage("No main root found near start")
+                    self._statusbar.showMessage("No root selected - select a root in the list first")
                     self._manual_lateral_start = None
                     self._canvas.set_manual_lateral_start(None)
                     return
