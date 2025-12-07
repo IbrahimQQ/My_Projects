@@ -317,12 +317,17 @@ class RootTracer:
 
         return best_point
 
-    def trace_laterals_for_root(self, root_id: int) -> List[Dict]:
+    def trace_laterals_for_root(self, root_id: int, min_length: int = 15,
+                                  min_branch_angle: float = 20.0,
+                                  search_radius: int = 5) -> List[Dict]:
         """
         Trace lateral roots for a specific main root.
 
         Args:
             root_id: ID of the main root
+            min_length: Minimum lateral length in pixels (default 15)
+            min_branch_angle: Minimum angle from main root direction (default 20 degrees)
+            search_radius: Radius to search for branch points (default 5)
 
         Returns:
             List of lateral root dictionaries
@@ -346,13 +351,14 @@ class RootTracer:
         main_points = root['points']
         height, width = self._skeleton.shape
 
-        # Create mask of this main root
+        # Create mask of this main root with some dilation
         main_root_mask = np.zeros_like(self._skeleton, dtype=bool)
         for x, y in main_points:
-            main_root_mask[y, x] = True
+            if 0 <= y < height and 0 <= x < width:
+                main_root_mask[y, x] = True
 
-        # Dilate main root mask slightly
-        dilated_main = binary_dilation(main_root_mask, iterations=2)
+        # Dilate main root mask to avoid detecting points too close to main root
+        dilated_main = binary_dilation(main_root_mask, iterations=3)
 
         # Track visited for laterals
         visited_laterals = np.zeros_like(self._skeleton, dtype=bool)
@@ -363,38 +369,123 @@ class RootTracer:
                 if 0 <= py < height and 0 <= px < width:
                     visited_laterals[py, px] = True
 
+        # Pre-compute main root direction at each point
+        main_directions = self._compute_directions_along_path(main_points)
+
         new_laterals = []
+        processed_starts = set()  # Avoid processing same branch point twice
 
         for idx, (mx, my) in enumerate(main_points):
-            # Check neighborhood for branch points
-            for dx in range(-3, 4):
-                for dy in range(-3, 4):
+            # Get main root direction at this point
+            main_dir = main_directions[idx] if idx < len(main_directions) else (0, 1)
+
+            # Search larger neighborhood for branch points
+            for dx in range(-search_radius, search_radius + 1):
+                for dy in range(-search_radius, search_radius + 1):
+                    if dx == 0 and dy == 0:
+                        continue
+
                     nx, ny = mx + dx, my + dy
-                    if 0 <= nx < width and 0 <= ny < height:
-                        if (self._skeleton[ny, nx] and
-                            not main_root_mask[ny, nx] and
-                            not visited_laterals[ny, nx]):
-                            # Trace lateral
-                            lateral_points = self._trace_lateral(
-                                (nx, ny), main_root_mask, visited_laterals
-                            )
-                            if len(lateral_points) > 5:  # Minimum length
-                                lateral_data = {
-                                    'id': len(root['laterals']) + len(new_laterals) + 1,
-                                    'points': lateral_points,
-                                    'start_index': idx,
-                                    'branch_point': (mx, my)
-                                }
-                                new_laterals.append(lateral_data)
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+
+                    # Skip if not on skeleton, on main root, or already visited
+                    if not self._skeleton[ny, nx]:
+                        continue
+                    if main_root_mask[ny, nx]:
+                        continue
+                    if visited_laterals[ny, nx]:
+                        continue
+
+                    # Skip if this start point was already processed
+                    start_key = (nx, ny)
+                    if start_key in processed_starts:
+                        continue
+                    processed_starts.add(start_key)
+
+                    # Trace the lateral with direction awareness
+                    lateral_points = self._trace_lateral_improved(
+                        (nx, ny), main_root_mask, visited_laterals, main_dir
+                    )
+
+                    if len(lateral_points) < min_length:
+                        continue
+
+                    # Check branch angle - lateral should branch off at an angle
+                    branch_angle = self._compute_branch_angle(main_dir, lateral_points)
+                    if abs(branch_angle) < min_branch_angle:
+                        # Too parallel to main root, likely noise
+                        continue
+
+                    lateral_data = {
+                        'id': len(root['laterals']) + len(new_laterals) + 1,
+                        'points': lateral_points,
+                        'start_index': idx,
+                        'branch_point': (mx, my)
+                    }
+                    new_laterals.append(lateral_data)
 
         # Add new laterals to the root
         root['laterals'].extend(new_laterals)
 
         return new_laterals
 
-    def _trace_lateral(self, start: Tuple[int, int], main_root_mask: np.ndarray,
-                       visited: np.ndarray) -> List[Tuple[int, int]]:
-        """Trace a single lateral root."""
+    def _compute_directions_along_path(self, points: List[Tuple[int, int]],
+                                         window: int = 5) -> List[Tuple[float, float]]:
+        """Compute smoothed direction vectors along a path."""
+        if len(points) < 2:
+            return [(0, 1)]  # Default downward
+
+        directions = []
+        for i in range(len(points)):
+            # Use a window around the point for smoothing
+            start_idx = max(0, i - window)
+            end_idx = min(len(points) - 1, i + window)
+
+            dx = points[end_idx][0] - points[start_idx][0]
+            dy = points[end_idx][1] - points[start_idx][1]
+
+            mag = np.sqrt(dx * dx + dy * dy)
+            if mag > 0:
+                directions.append((dx / mag, dy / mag))
+            else:
+                directions.append((0, 1))
+
+        return directions
+
+    def _compute_branch_angle(self, main_dir: Tuple[float, float],
+                               lateral_points: List[Tuple[int, int]]) -> float:
+        """Compute the angle between main root direction and lateral direction."""
+        if len(lateral_points) < 3:
+            return 90.0  # Assume perpendicular if too short to measure
+
+        # Use first few points of lateral to determine direction
+        num_points = min(10, len(lateral_points))
+        dx = lateral_points[num_points - 1][0] - lateral_points[0][0]
+        dy = lateral_points[num_points - 1][1] - lateral_points[0][1]
+
+        mag = np.sqrt(dx * dx + dy * dy)
+        if mag == 0:
+            return 90.0
+
+        lat_dir = (dx / mag, dy / mag)
+
+        # Compute angle using dot product
+        dot = main_dir[0] * lat_dir[0] + main_dir[1] * lat_dir[1]
+        dot = max(-1, min(1, dot))  # Clamp for numerical stability
+
+        angle = np.degrees(np.arccos(abs(dot)))
+        return angle
+
+    def _trace_lateral_improved(self, start: Tuple[int, int],
+                                  main_root_mask: np.ndarray,
+                                  visited: np.ndarray,
+                                  main_dir: Tuple[float, float]) -> List[Tuple[int, int]]:
+        """
+        Trace a lateral root with improved direction-aware algorithm.
+
+        Prefers to continue in a consistent direction and away from main root.
+        """
         if self._skeleton is None:
             return []
 
@@ -402,31 +493,125 @@ class RootTracer:
         path = [start]
         visited[start[1], start[0]] = True
 
-        # 8-connectivity
+        # 8-connectivity neighbors
         neighbors = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, 1), (1, -1), (-1, -1)]
 
         current = start
-        while True:
+        # Initial direction: perpendicular to main root (prefer branching away)
+        prev_dir = (-main_dir[1], main_dir[0])  # Rotate 90 degrees
+
+        max_iterations = 2000  # Prevent infinite loops
+
+        for _ in range(max_iterations):
             x, y = current
-            next_point = None
+            best_next = None
+            best_score = -float('inf')
 
             for dx, dy in neighbors:
                 nx, ny = x + dx, y + dy
-                if 0 <= nx < width and 0 <= ny < height:
-                    if (self._skeleton[ny, nx] and
-                        not visited[ny, nx] and
-                        not main_root_mask[ny, nx]):
-                        next_point = (nx, ny)
-                        break
 
-            if next_point is None:
-                break
+                if not (0 <= nx < width and 0 <= ny < height):
+                    continue
+                if not self._skeleton[ny, nx]:
+                    continue
+                if visited[ny, nx]:
+                    continue
+                if main_root_mask[ny, nx]:
+                    continue
 
-            path.append(next_point)
-            visited[next_point[1], next_point[0]] = True
-            current = next_point
+                # Score this neighbor
+                # 1. Direction continuity (prefer same direction)
+                move_mag = np.sqrt(dx * dx + dy * dy)
+                if move_mag > 0:
+                    move_dir = (dx / move_mag, dy / move_mag)
+                    continuity = prev_dir[0] * move_dir[0] + prev_dir[1] * move_dir[1]
+                else:
+                    continuity = 0
+
+                # 2. Penalize moving back toward main root direction
+                toward_main = main_dir[0] * dx + main_dir[1] * dy
+                away_bonus = -toward_main * 0.3  # Small penalty for going toward main root direction
+
+                # 3. Slight preference for diagonal moves (cover more distance)
+                diagonal_bonus = 0.1 if (dx != 0 and dy != 0) else 0
+
+                score = continuity * 2 + away_bonus + diagonal_bonus
+
+                if score > best_score:
+                    best_score = score
+                    best_next = (nx, ny)
+                    best_dir = move_dir if move_mag > 0 else prev_dir
+
+            if best_next is None:
+                # Try to jump small gaps
+                best_next = self._find_lateral_continuation(current, visited, main_root_mask, prev_dir)
+                if best_next is None:
+                    break
+                best_dir = prev_dir
+
+            path.append(best_next)
+            visited[best_next[1], best_next[0]] = True
+            current = best_next
+
+            # Update direction with smoothing
+            prev_dir = (0.7 * prev_dir[0] + 0.3 * best_dir[0],
+                       0.7 * prev_dir[1] + 0.3 * best_dir[1])
+            # Normalize
+            mag = np.sqrt(prev_dir[0]**2 + prev_dir[1]**2)
+            if mag > 0:
+                prev_dir = (prev_dir[0] / mag, prev_dir[1] / mag)
 
         return path
+
+    def _find_lateral_continuation(self, current: Tuple[int, int],
+                                    visited: np.ndarray,
+                                    main_root_mask: np.ndarray,
+                                    direction: Tuple[float, float],
+                                    max_gap: int = 5) -> Optional[Tuple[int, int]]:
+        """Find continuation of lateral path after a small gap."""
+        if self._skeleton is None:
+            return None
+
+        height, width = self._skeleton.shape
+        x, y = current
+
+        best_point = None
+        best_score = -float('inf')
+
+        for dist in range(2, max_gap + 1):
+            for dy in range(-dist, dist + 1):
+                for dx in range(-dist, dist + 1):
+                    if abs(dx) < dist and abs(dy) < dist:
+                        continue  # Only check perimeter
+
+                    nx, ny = x + dx, y + dy
+                    if not (0 <= nx < width and 0 <= ny < height):
+                        continue
+                    if not self._skeleton[ny, nx]:
+                        continue
+                    if visited[ny, nx]:
+                        continue
+                    if main_root_mask[ny, nx]:
+                        continue
+
+                    # Score by alignment with current direction
+                    mag = np.sqrt(dx * dx + dy * dy)
+                    if mag > 0:
+                        alignment = (dx * direction[0] + dy * direction[1]) / mag
+                    else:
+                        alignment = 0
+
+                    score = alignment - dist * 0.3  # Prefer closer points
+
+                    if score > best_score:
+                        best_score = score
+                        best_point = (nx, ny)
+
+            # If found a good continuation, return it
+            if best_point is not None and best_score > 0:
+                return best_point
+
+        return best_point
 
     def add_manual_lateral(self, root_id: int, start_point: Tuple[int, int],
                            end_point: Tuple[int, int]) -> Optional[Dict]:
