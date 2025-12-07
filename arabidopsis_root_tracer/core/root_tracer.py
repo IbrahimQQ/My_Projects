@@ -21,6 +21,7 @@ class RootTracer:
 
     def __init__(self):
         self._image: Optional[np.ndarray] = None
+        self._original_color_image: Optional[np.ndarray] = None  # Store original color image
         self._skeleton: Optional[np.ndarray] = None
         self._binary_mask: Optional[np.ndarray] = None
         # Support multiple main roots
@@ -29,6 +30,7 @@ class RootTracer:
         self._next_root_id: int = 1
         self._threshold: int = 30
         self._invert: bool = False
+        self._color_mode: str = "grayscale"  # "grayscale", "color_plate", "color_adaptive"
         # Cache for skeletons per slice
         self._skeleton_cache: Dict[int, np.ndarray] = {}
         self._mask_cache: Dict[int, np.ndarray] = {}
@@ -37,8 +39,14 @@ class RootTracer:
     def set_image(self, image: np.ndarray, slice_idx: int = 0):
         """Set the image to trace on. Preprocessing is deferred until tracing."""
         self._current_slice_idx = slice_idx
-        # Just store reference - preprocessing happens lazily when tracing
-        self._image = image
+        # Store original image (may be color or grayscale)
+        self._original_color_image = image
+        # For grayscale processing, convert if needed
+        if len(image.shape) == 3:
+            # Color image - will be processed based on color_mode
+            self._image = image
+        else:
+            self._image = image
 
         # Load cached skeleton if available (fast path for revisited slices)
         if slice_idx in self._skeleton_cache:
@@ -48,6 +56,28 @@ class RootTracer:
             # Clear skeleton - will be computed lazily when needed
             self._skeleton = None
             self._binary_mask = None
+
+    def set_color_mode(self, mode: str):
+        """
+        Set the color processing mode.
+
+        Args:
+            mode: One of:
+                - "grayscale": Traditional grayscale processing (default)
+                - "color_plate": For colored plate images (white roots on blue agar)
+                - "color_adaptive": Adaptive color extraction
+        """
+        if mode != self._color_mode:
+            self._color_mode = mode
+            # Clear cache when mode changes
+            self._skeleton_cache.clear()
+            self._mask_cache.clear()
+            self._skeleton = None
+            self._binary_mask = None
+
+    def get_color_mode(self) -> str:
+        """Get the current color mode."""
+        return self._color_mode
 
     def _ensure_preprocessed(self):
         """Ensure image is preprocessed (lazy preprocessing for tracing)."""
@@ -81,7 +111,7 @@ class RootTracer:
             self._binary_mask = None
 
     def _preprocess_image(self):
-        """Preprocess image for tracing."""
+        """Preprocess image for tracing based on color mode."""
         if self._image is None:
             return
 
@@ -91,8 +121,24 @@ class RootTracer:
             self._binary_mask = self._mask_cache[self._current_slice_idx]
             return
 
+        # Process based on color mode
+        if self._color_mode == "color_plate" and len(self._image.shape) == 3:
+            self._preprocess_color_plate()
+        elif self._color_mode == "color_adaptive" and len(self._image.shape) == 3:
+            self._preprocess_color_adaptive()
+        else:
+            self._preprocess_grayscale()
+
+    def _preprocess_grayscale(self):
+        """Traditional grayscale preprocessing."""
+        img = self._image
+
+        # Convert to grayscale if color
+        if len(img.shape) == 3:
+            img = np.mean(img, axis=2)
+
         # Normalize
-        img = self._image.astype(np.float64)
+        img = img.astype(np.float64)
         if img.max() > img.min():
             img = (img - img.min()) / (img.max() - img.min()) * 255
         img = img.astype(np.uint8)
@@ -110,6 +156,137 @@ class RootTracer:
         # Clean up with morphological operations
         self._binary_mask = binary_opening(self._binary_mask, disk(1))
         self._binary_mask = binary_closing(self._binary_mask, disk(2))
+
+        # Skeletonize
+        self._skeleton = skeletonize(self._binary_mask)
+
+        # Cache the results
+        self._skeleton_cache[self._current_slice_idx] = self._skeleton.copy()
+        self._mask_cache[self._current_slice_idx] = self._binary_mask.copy()
+
+    def _preprocess_color_plate(self):
+        """
+        Preprocessing for colored plate images (white roots on blue agar).
+
+        Extracts roots by detecting lighter regions against the blue background.
+        """
+        img = self._image.astype(np.float64)
+
+        if len(img.shape) != 3 or img.shape[2] < 3:
+            # Fall back to grayscale if not RGB
+            self._preprocess_grayscale()
+            return
+
+        # Extract RGB channels
+        r = img[:, :, 0]
+        g = img[:, :, 1]
+        b = img[:, :, 2]
+
+        # Method: Roots are white/light colored, background is blue
+        # White has R≈G≈B (high values), Blue has B>R,G
+        # So we look for pixels where R and G are relatively high compared to B
+
+        # Compute root score: areas where red+green is high relative to blue
+        # This makes white roots stand out from blue background
+        root_score = (r + g) / 2 - b * 0.3
+
+        # Also consider overall brightness (roots are bright)
+        brightness = (r + g + b) / 3
+
+        # Combine: prefer bright areas that aren't strongly blue
+        combined = root_score * 0.6 + brightness * 0.4
+
+        # Normalize
+        if combined.max() > combined.min():
+            combined = (combined - combined.min()) / (combined.max() - combined.min()) * 255
+        combined = combined.astype(np.uint8)
+
+        # Invert if needed
+        if self._invert:
+            combined = 255 - combined
+
+        # Apply Gaussian blur
+        combined = gaussian(combined, sigma=1.5, preserve_range=True).astype(np.uint8)
+
+        # Adaptive thresholding for better results with varying illumination
+        # Use the provided threshold but scale it appropriately
+        self._binary_mask = combined > self._threshold
+
+        # Clean up - use slightly more aggressive morphology for color images
+        self._binary_mask = binary_opening(self._binary_mask, disk(2))
+        self._binary_mask = binary_closing(self._binary_mask, disk(3))
+
+        # Remove small objects (noise)
+        from scipy.ndimage import label
+        labeled, num_features = label(self._binary_mask)
+        component_sizes = np.bincount(labeled.ravel())
+        # Keep components larger than 50 pixels
+        small_mask = component_sizes < 50
+        small_mask[0] = False  # Don't remove background
+        self._binary_mask = ~small_mask[labeled]
+
+        # Skeletonize
+        self._skeleton = skeletonize(self._binary_mask)
+
+        # Cache the results
+        self._skeleton_cache[self._current_slice_idx] = self._skeleton.copy()
+        self._mask_cache[self._current_slice_idx] = self._binary_mask.copy()
+
+    def _preprocess_color_adaptive(self):
+        """
+        Adaptive color preprocessing that works across different plate colors.
+
+        Uses color clustering to separate roots from background.
+        """
+        img = self._image.astype(np.float64)
+
+        if len(img.shape) != 3 or img.shape[2] < 3:
+            self._preprocess_grayscale()
+            return
+
+        r = img[:, :, 0]
+        g = img[:, :, 1]
+        b = img[:, :, 2]
+
+        # Convert to grayscale using luminance formula
+        gray = 0.299 * r + 0.587 * g + 0.114 * b
+
+        # Calculate local contrast using standard deviation
+        from scipy.ndimage import uniform_filter
+        local_mean = uniform_filter(gray, size=15)
+        local_sq_mean = uniform_filter(gray**2, size=15)
+        local_std = np.sqrt(np.maximum(local_sq_mean - local_mean**2, 0))
+
+        # Roots often have higher contrast than uniform background
+        # Combine brightness with local contrast
+        contrast_enhanced = gray + local_std * 2
+
+        # Normalize
+        if contrast_enhanced.max() > contrast_enhanced.min():
+            contrast_enhanced = (contrast_enhanced - contrast_enhanced.min()) / \
+                               (contrast_enhanced.max() - contrast_enhanced.min()) * 255
+        combined = contrast_enhanced.astype(np.uint8)
+
+        if self._invert:
+            combined = 255 - combined
+
+        # Gaussian blur
+        combined = gaussian(combined, sigma=1.5, preserve_range=True).astype(np.uint8)
+
+        # Threshold
+        self._binary_mask = combined > self._threshold
+
+        # Morphological cleanup
+        self._binary_mask = binary_opening(self._binary_mask, disk(2))
+        self._binary_mask = binary_closing(self._binary_mask, disk(3))
+
+        # Remove small objects
+        from scipy.ndimage import label
+        labeled, num_features = label(self._binary_mask)
+        component_sizes = np.bincount(labeled.ravel())
+        small_mask = component_sizes < 50
+        small_mask[0] = False
+        self._binary_mask = ~small_mask[labeled]
 
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)

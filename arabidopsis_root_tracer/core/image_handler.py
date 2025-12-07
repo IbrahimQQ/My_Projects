@@ -15,6 +15,7 @@ class ImageHandler:
         self._file_path: Optional[str] = None
         self._slice_names: List[str] = []
         self._current_slice: int = 0
+        self._is_color: bool = False
         # Cache for normalized slices
         self._normalized_cache: Dict[int, np.ndarray] = {}
 
@@ -32,20 +33,28 @@ class ImageHandler:
             self._stack = tifffile.imread(file_path)
             self._file_path = file_path
             self._normalized_cache = {}  # Clear cache - will compute lazily
+            self._is_color = False  # Track if we have color images
 
             # Handle single image vs stack
             if self._stack.ndim == 2:
-                # Single image - add dimension
+                # Single grayscale image - add dimension
                 self._stack = self._stack[np.newaxis, ...]
             elif self._stack.ndim == 3:
-                # Could be RGB or stack
+                # Could be RGB single image or grayscale stack
                 if self._stack.shape[2] in [3, 4]:
-                    # RGB/RGBA - convert to grayscale and treat as single
-                    self._stack = np.mean(self._stack, axis=2).astype(np.uint8)
+                    # RGB/RGBA single image - keep as color, add batch dimension
+                    if self._stack.shape[2] == 4:
+                        # RGBA - drop alpha channel
+                        self._stack = self._stack[:, :, :3]
                     self._stack = self._stack[np.newaxis, ...]
+                    self._is_color = True
+                # else: grayscale stack, keep as-is
             elif self._stack.ndim == 4:
-                # Stack of RGB - convert each to grayscale
-                self._stack = np.mean(self._stack, axis=3).astype(np.uint8)
+                # Stack of RGB/RGBA images - keep as color
+                if self._stack.shape[3] == 4:
+                    # RGBA - drop alpha channel
+                    self._stack = self._stack[:, :, :, :3]
+                self._is_color = True
 
             # Initialize slice names
             self._slice_names = [f"Slice_{i+1}" for i in range(self.num_slices)]
@@ -158,7 +167,7 @@ class ImageHandler:
             index: Slice index (default: current slice)
 
         Returns:
-            Normalized 2D numpy array
+            Normalized numpy array (2D for grayscale, 3D for color)
         """
         if self._stack is None:
             return None
@@ -176,8 +185,25 @@ class ImageHandler:
             return None
 
         img = img.astype(np.float32)
-        if img.max() > img.min():
-            img = (img - img.min()) / (img.max() - img.min()) * 255
-        normalized = img.astype(np.uint8)
+
+        if len(img.shape) == 3:
+            # Color image - normalize each channel
+            normalized = np.zeros_like(img, dtype=np.uint8)
+            for c in range(img.shape[2]):
+                channel = img[:, :, c]
+                if channel.max() > channel.min():
+                    channel = (channel - channel.min()) / (channel.max() - channel.min()) * 255
+                normalized[:, :, c] = channel.astype(np.uint8)
+        else:
+            # Grayscale
+            if img.max() > img.min():
+                img = (img - img.min()) / (img.max() - img.min()) * 255
+            normalized = img.astype(np.uint8)
+
         self._normalized_cache[index] = normalized
         return normalized
+
+    @property
+    def is_color(self) -> bool:
+        """Check if the loaded image stack is color (RGB)."""
+        return self._is_color

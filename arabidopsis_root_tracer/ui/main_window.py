@@ -154,6 +154,22 @@ class MainWindow(QMainWindow):
         thresh_layout.addStretch()
         trace_layout.addLayout(thresh_layout)
 
+        # Color mode selection
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("Color Mode:"))
+        self._cmb_color_mode = QComboBox()
+        self._cmb_color_mode.addItem("Grayscale", "grayscale")
+        self._cmb_color_mode.addItem("Color Plate (Blue Agar)", "color_plate")
+        self._cmb_color_mode.addItem("Color Adaptive", "color_adaptive")
+        self._cmb_color_mode.setToolTip(
+            "Grayscale: For preprocessed black/white images\n"
+            "Color Plate: For colored images with white roots on blue agar\n"
+            "Color Adaptive: Adaptive detection for various backgrounds"
+        )
+        color_layout.addWidget(self._cmb_color_mode)
+        color_layout.addStretch()
+        trace_layout.addLayout(color_layout)
+
         # Lateral buttons in row
         lat_layout = QHBoxLayout()
         self._btn_trace_laterals = QPushButton("Laterals (L)")
@@ -405,6 +421,7 @@ class MainWindow(QMainWindow):
         # Tracing controls
         self._spin_threshold.valueChanged.connect(self._on_threshold_changed)
         self._chk_invert.stateChanged.connect(self._on_invert_changed)
+        self._cmb_color_mode.currentIndexChanged.connect(self._on_color_mode_changed)
         self._btn_trace_laterals.clicked.connect(self._on_trace_laterals)
         self._btn_clear_current.clicked.connect(self._on_clear_current_root)
         self._btn_clear_all.clicked.connect(self._on_clear_all)
@@ -1090,6 +1107,18 @@ class MainWindow(QMainWindow):
     def _on_invert_changed(self, state: int):
         self._root_tracer.set_invert(state != 0)
         self._statusbar.showMessage("Invert changed - re-click start point to trace")
+
+    @Slot(int)
+    def _on_color_mode_changed(self, index: int):
+        """Handle color mode change."""
+        mode = self._cmb_color_mode.currentData()
+        self._root_tracer.set_color_mode(mode)
+        mode_names = {
+            "grayscale": "Grayscale (preprocessed images)",
+            "color_plate": "Color Plate (blue agar)",
+            "color_adaptive": "Color Adaptive"
+        }
+        self._statusbar.showMessage(f"Color mode: {mode_names.get(mode, mode)}")
 
     @Slot(int)
     def _on_main_root_angle_mode_changed(self, state: int):
