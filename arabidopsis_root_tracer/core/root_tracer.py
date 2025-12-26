@@ -130,7 +130,7 @@ class RootTracer:
             self._preprocess_grayscale()
 
     def _preprocess_grayscale(self):
-        """Traditional grayscale preprocessing."""
+        """Traditional grayscale preprocessing with plate edge filtering."""
         img = self._image
 
         # Convert to grayscale if color
@@ -157,12 +157,106 @@ class RootTracer:
         self._binary_mask = binary_opening(self._binary_mask, disk(1))
         self._binary_mask = binary_closing(self._binary_mask, disk(2))
 
+        # Filter out plate edges and non-root structures
+        self._binary_mask = self._filter_plate_edges(self._binary_mask)
+
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)
 
         # Cache the results
         self._skeleton_cache[self._current_slice_idx] = self._skeleton.copy()
         self._mask_cache[self._current_slice_idx] = self._binary_mask.copy()
+
+    def _filter_plate_edges(self, mask: np.ndarray, border_margin: int = 50) -> np.ndarray:
+        """
+        Filter out plate edges and non-root structures from binary mask.
+
+        Uses multiple strategies:
+        1. Remove objects touching image borders (likely plate edges)
+        2. Filter by shape - roots are elongated, edges are thick/boxy
+        3. Remove very large connected components (plate edges)
+
+        Args:
+            mask: Binary mask
+            border_margin: Margin from image edges to consider as border region
+
+        Returns:
+            Filtered binary mask
+        """
+        from scipy.ndimage import label
+        from skimage.measure import regionprops
+
+        height, width = mask.shape
+        filtered_mask = np.zeros_like(mask)
+
+        # Label connected components
+        labeled, num_features = label(mask)
+
+        if num_features == 0:
+            return filtered_mask
+
+        # Analyze each component
+        props = regionprops(labeled)
+
+        for prop in props:
+            # Get component properties
+            area = prop.area
+            bbox = prop.bbox  # (min_row, min_col, max_row, max_col)
+            min_row, min_col, max_row, max_col = bbox
+
+            # Calculate shape metrics
+            bbox_height = max_row - min_row
+            bbox_width = max_col - min_col
+
+            # Aspect ratio (elongation)
+            if bbox_width > 0 and bbox_height > 0:
+                aspect_ratio = max(bbox_height, bbox_width) / min(bbox_height, bbox_width)
+            else:
+                aspect_ratio = 1
+
+            # Solidity (how filled the bounding box is)
+            bbox_area = bbox_height * bbox_width
+            solidity = area / bbox_area if bbox_area > 0 else 0
+
+            # Check if touching image borders (likely plate edge)
+            touches_border = (
+                min_row < border_margin or
+                min_col < border_margin or
+                max_row > height - border_margin or
+                max_col > width - border_margin
+            )
+
+            # Criteria for keeping a component as a root:
+            # 1. Not too large (plate edges are usually very large)
+            # 2. Elongated shape (aspect ratio > 2 for roots)
+            # 3. Not too thick/solid (roots are thin, plate edges are thick)
+            # 4. If touching border, must be very elongated to be a root
+
+            is_root_like = True
+
+            # Very large objects are likely plate edges
+            if area > (height * width * 0.1):  # More than 10% of image
+                is_root_like = False
+
+            # Plate edges are typically thick and boxy
+            if solidity > 0.8 and aspect_ratio < 3:
+                # Thick and not elongated - likely not a root
+                if area > 1000:  # Only filter large thick objects
+                    is_root_like = False
+
+            # Objects touching borders need to be more elongated to be roots
+            if touches_border:
+                if aspect_ratio < 5:  # Border objects need high aspect ratio
+                    is_root_like = False
+                # Very thick border objects are definitely plate edges
+                if min(bbox_height, bbox_width) > 30:
+                    is_root_like = False
+
+            # Keep the component if it looks like a root
+            if is_root_like:
+                filtered_mask[labeled == prop.label] = True
+
+        return filtered_mask
 
     def _preprocess_color_plate(self):
         """
@@ -224,6 +318,9 @@ class RootTracer:
         small_mask = component_sizes < 50
         small_mask[0] = False  # Don't remove background
         self._binary_mask = ~small_mask[labeled]
+
+        # Filter out plate edges and non-root structures
+        self._binary_mask = self._filter_plate_edges(self._binary_mask)
 
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)
@@ -287,6 +384,9 @@ class RootTracer:
         small_mask = component_sizes < 50
         small_mask[0] = False
         self._binary_mask = ~small_mask[labeled]
+
+        # Filter out plate edges and non-root structures
+        self._binary_mask = self._filter_plate_edges(self._binary_mask)
 
         # Skeletonize
         self._skeleton = skeletonize(self._binary_mask)
