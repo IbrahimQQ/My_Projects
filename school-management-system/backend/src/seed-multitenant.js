@@ -231,7 +231,7 @@ const seed = async () => {
 
         // Link to parent
         await sequelize.query(
-          `INSERT INTO "ParentStudent" ("ParentProfileId", "StudentId", "createdAt", "updatedAt") VALUES ('${parentProfiles[i % 3].id}', '${student.id}', NOW(), NOW())`
+          `INSERT INTO "ParentStudent" ("parent_profile_id", "student_id", "created_at", "updated_at") VALUES ('${parentProfiles[i % 3].id}', '${student.id}', NOW(), NOW())`
         );
 
         // Enroll in subjects
