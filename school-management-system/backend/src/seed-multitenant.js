@@ -197,10 +197,11 @@ const seed = async () => {
 
       // Create parent profiles
       const parentProfiles = [];
+      const relationships = ['father', 'mother', 'guardian'];
       for (let i = 0; i < parentUsers.length; i++) {
         const profile = await ParentProfile.create({
           userId: parentUsers[i].id,
-          relationship: 'parent',
+          relationship: relationships[i % 3],
           canViewGrades: true,
           canViewAttendance: true,
           canMessageTeachers: true,
