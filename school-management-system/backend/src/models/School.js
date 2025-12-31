@@ -108,7 +108,7 @@ const defineSchoolModel = (sequelize) => {
     indexes: [
       { fields: ['code'] },
       { fields: ['subdomain'] },
-      { fields: ['isActive'] }
+      { fields: ['is_active'] }  // Use snake_case for index (underscored: true in config)
     ]
   });
 
