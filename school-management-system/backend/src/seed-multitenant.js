@@ -12,16 +12,9 @@ const seed = async () => {
   try {
     console.log('🌱 Starting multi-tenant seed...\n');
 
-    // Drop all tables and recreate
-    await sequelize.drop();
-    console.log('✓ Dropped all tables');
-
-    // Sync in correct order: School first (no dependencies), then others
-    await School.sync();
-    console.log('✓ School table created');
-
-    await sequelize.sync();
-    console.log('✓ All tables created\n');
+    // Drop all tables and recreate using force sync (more reliable than drop + sync)
+    await sequelize.sync({ force: true });
+    console.log('✓ All tables dropped and recreated\n');
 
     const hashedPassword = await bcrypt.hash('password123', 10);
     const now = new Date();
