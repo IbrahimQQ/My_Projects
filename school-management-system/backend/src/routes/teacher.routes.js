@@ -42,4 +42,10 @@ router.post('/:id/subjects',
   teacherController.assignSubjects
 );
 
+// Generate new credentials for teacher
+router.post('/:id/credentials',
+  authorize('principal', 'admin'),
+  teacherController.generateCredentials
+);
+
 module.exports = router;

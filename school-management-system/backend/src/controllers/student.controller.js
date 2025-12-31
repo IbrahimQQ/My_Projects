@@ -56,6 +56,12 @@ exports.getStudents = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const where = {};
+
+    // CRITICAL: Filter by school - multi-tenancy
+    if (req.user && req.user.schoolId) {
+      where.schoolId = req.user.schoolId;
+    }
+
     if (classId) where.classId = classId;
     if (status) where.status = status;
 
@@ -108,6 +114,11 @@ exports.getStudent = async (req, res) => {
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // CRITICAL: Check multi-tenancy - student must belong to user's school
+    if (req.user && req.user.schoolId && student.schoolId !== req.user.schoolId) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
     res.json({ data: student });

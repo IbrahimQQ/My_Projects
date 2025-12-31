@@ -305,3 +305,46 @@ exports.assignSubjects = async (req, res) => {
     res.status(500).json({ error: 'Failed to assign subjects' });
   }
 };
+
+// Generate new credentials for teacher
+exports.generateCredentials = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const profile = await TeacherProfile.findByPk(id, {
+      include: [{ model: User }]
+    });
+
+    if (!profile) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    // CRITICAL: Check multi-tenancy
+    if (req.user && req.user.schoolId && profile.schoolId !== req.user.schoolId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Generate a strong temporary password
+    const temporaryPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase() + '!';
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+    // Update user password
+    await User.update(
+      { password: hashedPassword },
+      { where: { id: profile.userId } }
+    );
+
+    await createAuditLog(req.user.id, 'GENERATE_CREDENTIALS', 'Teacher', id, null, null, req);
+
+    res.json({
+      message: 'Credentials generated successfully',
+      data: {
+        email: profile.User.email,
+        temporaryPassword
+      }
+    });
+  } catch (error) {
+    console.error('Generate credentials error:', error);
+    res.status(500).json({ error: 'Failed to generate credentials' });
+  }
+};
