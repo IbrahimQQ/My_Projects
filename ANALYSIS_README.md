@@ -38,11 +38,41 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the enhanced analysis:
+### Quick Test (Recommended First)
+
+Before running the full analysis, verify your installation:
+
+```bash
+python quick_test.py
+```
+
+This will:
+- Check all required packages are installed
+- Test multiprocessing functionality
+- Estimate runtime and memory requirements
+- Create a simple test plot
+
+### Full Analysis
+
+Run the complete analysis:
 
 ```bash
 python enhanced_multicore_diagnostics.py
 ```
+
+### Visualize Results
+
+After the analysis completes, visualize and explore results:
+
+```bash
+python visualize_results.py
+```
+
+This will:
+- Load and display fitted parameters
+- Create summary bar plots
+- Display all diagnostic plots in a grid
+- Print interpretation guidelines
 
 ### Computation Time
 
@@ -219,6 +249,23 @@ n_samples=256   # Quick test
 
 ## Files
 
-- `enhanced_multicore_diagnostics.py` - Main analysis script
+- `enhanced_multicore_diagnostics.py` - Main analysis script with all diagnostics
+- `quick_test.py` - Quick installation and functionality test
+- `visualize_results.py` - Results visualization and interpretation utility
 - `requirements.txt` - Python dependencies
 - `ANALYSIS_README.md` - This documentation file
+
+## Workflow
+
+Recommended workflow for analysis:
+
+1. **Install dependencies**: `pip install -r requirements.txt`
+2. **Test installation**: `python quick_test.py`
+3. **Run full analysis**: `python enhanced_multicore_diagnostics.py` (30-60 min)
+4. **Visualize results**: `python visualize_results.py`
+5. **Examine diagnostic plots** to assess:
+   - Parameter identifiability (eigenvalues, profile likelihood)
+   - MCMC convergence (traces, log posterior)
+   - Parameter relationships (correlation matrix)
+   - Model sensitivity (elasticity, Sobol indices)
+   - System dynamics (bifurcation analysis)
