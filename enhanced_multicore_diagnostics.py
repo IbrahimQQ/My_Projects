@@ -20,32 +20,32 @@ import time
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 # ------------------------------
-# Experimental data (VENUS fold change) - FULL DATA
+# Experimental data (VENUS fold change) - Updated (removed 50µM PAA conditions)
 # ------------------------------
-# Columns: 100iaa, 5paa, control, 50paa, 500paa, 5upaa, 50upaa,
-#          5then100, 50then100, 500then100, 5uthen100, 50uthen100
+# Columns: 100iaa, 5paa, control, 50paa, 500paa, 5upaa,
+#          5then100, 50then100, 500then100, 5uthen100
 data_matrix = np.array([
-    [1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.8523048   , 1.087544    , 0.9649733   , 1.166976    , 0.918218    , 0.966466    , 0.9780382   , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.6827122   , 1.08695     , 0.9568927   , 1.085554    , 0.8876873   , 0.9348458   , 0.7976915   , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.6039012   , 1.103395    , 0.8308875   , 0.987356    , 0.80062     , 0.8261556   , 0.849046    , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.4960662   , 0.9315695   , 0.809217    , 0.9792683   , 0.81247     , 0.9108808   , 0.8280835   , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.5136364   , 0.9495908   , 0.7883567   , 0.8671327   , 0.7368553   , 0.8057324   , 0.7465905   , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.5333068   , 0.8594795   , 0.777324    , 1.035506    , 0.8065013   , 0.7686848   , 0.7257395   , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.3923052   , 0.9433322   , 0.7269902   , 1.027591    , 0.840719    , 0.7561538   , 0.767329    , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.3386606   , 0.9532562   , 0.7498968   , 0.9676473   , 0.7643677   , 0.6663518   , 0.6909523   , 0.7514892   , 0.873957    , 0.9182737   , 0.8620715   , 0.8650884   ],
-    [0.2934868   , 0.9783455   , 0.793647    , 1.047304    , 0.781112    , 0.6994382   , 0.6271917   , 0.816073    , 0.8477453   , 0.9288223   , 0.7836655   , 0.691179    ],
-    [0.3239684   , 1.032918    , 0.793091    , 0.968032    , 0.73581     , 0.6369738   , 0.5995385   , 0.6846347   , 0.7563447   , 0.6402197   , 0.7919083   , 0.7170688   ],
-    [0.2830352   , 0.9254622   , 0.8144522   , 1.072704    , 0.801594    , 0.6702864   , 0.5982548   , 0.6529985   , 0.6293247   , 0.8064763   , 0.7053645   , 0.6692474   ],
-    [0.2729652   , 0.9316605   , 0.8510785   , 1.153924    , 0.810091    , 0.6483174   , 0.6433657   , 0.6470235   , 0.5316817   , 0.753376    , 0.739992    , 0.5520212   ],
-    [0.270844    , 0.8821205   , 0.8415182   , 0.9468663   , 0.8085713   , 0.5959894   , 0.6604685   , 0.60346     , 0.541956    , 0.7471405   , 0.6485895   , 0.4955212   ],
-    [0.2968902   , 0.8597067   , 0.8177287   , 0.9426123   , 0.6316327   , 0.629189    , 0.587721    , 0.5224148   , 0.5168547   , 0.660822    , 0.6483463   , 0.4177432   ],
-    [0.2502296   , 0.8454915   , 0.8045162   , 0.927739    , 0.6316327   , 0.6230858   , 0.6003517   , 0.5122045   , 0.482083    , 0.7224945   , 0.6616935   , 0.4177432   ]
+    [1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.8523048   , 1.087544    , 0.9649733   , 1.166976    , 0.918218    , 0.966466    , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.6827122   , 1.08695     , 0.9568927   , 1.085554    , 0.8876873   , 0.9348458   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.6039012   , 1.103395    , 0.8308875   , 0.987356    , 0.80062     , 0.8261556   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.4960662   , 0.9315695   , 0.809217    , 0.9792683   , 0.81247     , 0.9108808   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.5136364   , 0.9495908   , 0.7883567   , 0.8671327   , 0.7368553   , 0.8057324   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.5333068   , 0.8594795   , 0.777324    , 1.035506    , 0.8065013   , 0.7686848   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.3923052   , 0.9433322   , 0.7269902   , 1.027591    , 0.840719    , 0.7561538   , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.3386606   , 0.9532562   , 0.7498968   , 0.9676473   , 0.7643677   , 0.6663518   , 0.7514892   , 0.873957    , 0.9182737   , 0.8620715   ],
+    [0.2934868   , 0.9783455   , 0.793647    , 1.047304    , 0.781112    , 0.6994382   , 0.816073    , 0.8477453   , 0.9288223   , 0.7836655   ],
+    [0.3239684   , 1.032918    , 0.793091    , 0.968032    , 0.73581     , 0.6369738   , 0.6846347   , 0.7563447   , 0.6402197   , 0.7919083   ],
+    [0.2830352   , 0.9254622   , 0.8144522   , 1.072704    , 0.801594    , 0.6702864   , 0.6529985   , 0.6293247   , 0.8064763   , 0.7053645   ],
+    [0.2729652   , 0.9316605   , 0.8510785   , 1.153924    , 0.810091    , 0.6483174   , 0.6470235   , 0.5316817   , 0.753376    , 0.739992    ],
+    [0.270844    , 0.8821205   , 0.8415182   , 0.9468663   , 0.8085713   , 0.5959894   , 0.60346     , 0.541956    , 0.7471405   , 0.6485895   ],
+    [0.2968902   , 0.8597067   , 0.8177287   , 0.9426123   , 0.6316327   , 0.629189    , 0.5224148   , 0.5168547   , 0.660822    , 0.6483463   ],
+    [0.2502296   , 0.8454915   , 0.8045162   , 0.927739    , 0.6316327   , 0.6230858   , 0.5122045   , 0.482083    , 0.7224945   , 0.6616935   ]
 ], dtype=float)
 
-# Treatment labels
-labels = ['100iaa', '5paa', 'control', '50paa', '500paa', '5upaa', '50upaa',
-          '5then100', '50then100', '500then100', '5uthen100', '50uthen100']
+# Treatment labels (removed 50upaa and 50uthen100)
+labels = ['100iaa', '5paa', 'control', '50paa', '500paa', '5upaa',
+          '5then100', '50then100', '500then100', '5uthen100']
 
 # Time points (0-60 min, 4 min intervals)
 t_eval = np.arange(0, 61, 4)
@@ -55,7 +55,7 @@ kinetic_names = ['ka1', 'kd1', 'ka2', 'kd2', 'la', 'ld', 'lm',
                  'delta', 'mu1', 'mu2', 'lam', 'TIR1_T']
 alpha_names = ['alpha_0_IAA', 'alpha_0_PAA', 'alpha_IAA_100nM',
                'alpha_PAA_5nM', 'alpha_PAA_50nM', 'alpha_PAA_500nM',
-               'alpha_PAA_5uM', 'alpha_PAA_50uM']
+               'alpha_PAA_5uM']
 all_param_names = kinetic_names + alpha_names
 
 # ------------------------------
@@ -199,10 +199,11 @@ def simulate_dataset(params, alpha_I_list, alpha_P_list, t_switch_list, t_eval):
 def build_treatments(alpha_params):
     """
     Build treatment configurations from influx parameters
+    (Updated: removed 50µM PAA treatments)
     """
     (alpha_0_IAA, alpha_0_PAA, alpha_IAA_100nM,
      alpha_PAA_5nM, alpha_PAA_50nM, alpha_PAA_500nM,
-     alpha_PAA_5uM, alpha_PAA_50uM) = alpha_params
+     alpha_PAA_5uM) = alpha_params
 
     treatments = []
 
@@ -248,45 +249,31 @@ def build_treatments(alpha_params):
         [0]
     ))
 
-    # Treatment 6: 50µM PAA only
-    treatments.append((
-        [(0, alpha_0_IAA)],
-        [(0, alpha_PAA_50uM)],
-        [0]
-    ))
-
-    # Treatment 7: 5nM PAA for 30min, then add 100nM IAA
+    # Treatment 6: 5nM PAA for 30min, then add 100nM IAA
     treatments.append((
         [(0, alpha_0_IAA), (30, alpha_IAA_100nM)],
         [(0, alpha_PAA_5nM), (30, alpha_PAA_5nM)],
         [0, 30]
     ))
 
-    # Treatment 8: 50nM PAA for 30min, then add 100nM IAA
+    # Treatment 7: 50nM PAA for 30min, then add 100nM IAA
     treatments.append((
         [(0, alpha_0_IAA), (30, alpha_IAA_100nM)],
         [(0, alpha_PAA_50nM), (30, alpha_PAA_50nM)],
         [0, 30]
     ))
 
-    # Treatment 9: 500nM PAA for 30min, then add 100nM IAA
+    # Treatment 8: 500nM PAA for 30min, then add 100nM IAA
     treatments.append((
         [(0, alpha_0_IAA), (30, alpha_IAA_100nM)],
         [(0, alpha_PAA_500nM), (30, alpha_PAA_500nM)],
         [0, 30]
     ))
 
-    # Treatment 10: 5µM PAA for 30min, then add 100nM IAA
+    # Treatment 9: 5µM PAA for 30min, then add 100nM IAA
     treatments.append((
         [(0, alpha_0_IAA), (30, alpha_IAA_100nM)],
         [(0, alpha_PAA_5uM), (30, alpha_PAA_5uM)],
-        [0, 30]
-    ))
-
-    # Treatment 11: 50µM PAA for 30min, then add 100nM IAA
-    treatments.append((
-        [(0, alpha_0_IAA), (30, alpha_IAA_100nM)],
-        [(0, alpha_PAA_50uM), (30, alpha_PAA_50uM)],
         [0, 30]
     ))
 
@@ -298,10 +285,11 @@ def build_treatments(alpha_params):
 def objective(all_params, t_eval, data_matrix):
     """
     Objective function for parameter estimation
+    (Updated: 10 treatments, 7 influx parameters)
     """
     # Unpack parameters
     kinetic = all_params[:12]  # 12 kinetic parameters
-    alpha_params = all_params[12:]  # 8 influx parameters
+    alpha_params = all_params[12:]  # 7 influx parameters
 
     # Build all treatments
     treatments = build_treatments(alpha_params)
@@ -309,14 +297,14 @@ def objective(all_params, t_eval, data_matrix):
     # Calculate residuals
     total_err = []
 
-    for j in range(12):  # 12 treatments
+    for j in range(10):  # 10 treatments (removed 50µM PAA conditions)
         alpha_I_list, alpha_P_list, t_switch_list = treatments[j]
 
         Vsim = simulate_dataset(kinetic, alpha_I_list, alpha_P_list, t_switch_list, t_eval)
         Vdata = data_matrix[:, j]
 
-        # For "then" treatments (7-11), only fit data from t=32 onwards
-        if j >= 7:
+        # For "then" treatments (6-9), only fit data from t=32 onwards
+        if j >= 6:
             valid_idx = t_eval >= 32
             Vsim_valid = Vsim[valid_idx]
             Vdata_valid = Vdata[valid_idx]
@@ -369,7 +357,7 @@ def estimate_parameters_parallel(t_eval, data_matrix, num_samples=30, n_cores=No
 
     print(f"Using {n_cores} CPU cores for parallel optimization")
 
-    # Parameter bounds
+    # Parameter bounds (12 kinetic + 7 influx = 19 total)
     param_bounds = [
         # Kinetic parameters
         (1e-3, 20),   # ka1
@@ -384,7 +372,7 @@ def estimate_parameters_parallel(t_eval, data_matrix, num_samples=30, n_cores=No
         (1e-3, 5),    # mu2
         (1e-3, 5),    # lam
         (1, 50),      # TIR1_T
-        # Influx parameters
+        # Influx parameters (removed alpha_PAA_50uM)
         (0.1, 100),   # alpha_0_IAA
         (0.1, 100),   # alpha_0_PAA
         (0.1, 100),   # alpha_IAA_100nM
@@ -392,7 +380,6 @@ def estimate_parameters_parallel(t_eval, data_matrix, num_samples=30, n_cores=No
         (0.1, 100),   # alpha_PAA_50nM
         (0.1, 100),   # alpha_PAA_500nM
         (0.1, 100),   # alpha_PAA_5uM
-        (0.1, 100),   # alpha_PAA_50uM
     ]
 
     # Generate initial guesses using Latin Hypercube Sampling
@@ -404,7 +391,7 @@ def estimate_parameters_parallel(t_eval, data_matrix, num_samples=30, n_cores=No
     initial_guesses = lhs_samples * (upper_bounds - lower_bounds) + lower_bounds
 
     print(f"Running parameter estimation with {num_samples} initial guesses...")
-    print(f"Total parameters: 12 kinetic + 8 influx = 20")
+    print(f"Total parameters: 12 kinetic + 7 influx = 19")
 
     # Create partial function with fixed arguments
     worker_func = partial(fit_single_guess,
@@ -725,10 +712,11 @@ def plot_mcmc_traces(sampler, burn_in=1000, save_path='mcmc_traces.png'):
     print("\nGenerating MCMC trace plots...")
 
     samples = sampler.get_chain()
+    n_params = len(all_param_names)
 
-    fig, axes = plt.subplots(20, 1, figsize=(12, 24))
+    fig, axes = plt.subplots(n_params, 1, figsize=(12, 2.5*n_params))
 
-    for i in range(20):
+    for i in range(n_params):
         ax = axes[i]
         for j in range(samples.shape[1]):  # For each walker
             ax.plot(samples[:, j, i], alpha=0.3, lw=0.5)
@@ -737,7 +725,7 @@ def plot_mcmc_traces(sampler, burn_in=1000, save_path='mcmc_traces.png'):
         ax.set_xlim(0, samples.shape[0])
         if i == 0:
             ax.legend()
-        if i < 19:
+        if i < n_params - 1:
             ax.set_xticks([])
 
     axes[-1].set_xlabel("Step", fontsize=12)
@@ -764,6 +752,116 @@ def plot_log_posterior(sampler, burn_in=1000, save_path='log_posterior.png'):
     ax.legend()
 
     plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {save_path}")
+
+def plot_parameter_diagnostics(sampler, burn_in=1000, save_path='parameter_diagnostics.png'):
+    """
+    Plot comprehensive diagnostics for each parameter:
+    - Column 1: MCMC trace
+    - Column 2: Posterior histogram
+    - Column 3: Autocorrelation
+    """
+    print("\nGenerating comprehensive parameter diagnostics...")
+
+    # Get samples after burn-in
+    chain = sampler.get_chain()
+    flat_samples = sampler.get_chain(discard=burn_in, flat=True)
+    n_params = len(all_param_names)
+
+    # Compute autocorrelation function
+    def compute_autocorr(x, maxlag=50):
+        """Compute autocorrelation for a 1D array"""
+        x = x - np.mean(x)
+        autocorr = np.correlate(x, x, mode='full')
+        autocorr = autocorr[len(autocorr)//2:]
+        autocorr = autocorr / autocorr[0]
+        return autocorr[:min(maxlag, len(autocorr))]
+
+    # Create figure with subplots
+    fig = plt.figure(figsize=(18, 2.5*n_params))
+    gs = GridSpec(n_params, 3, figure=fig, hspace=0.4, wspace=0.3)
+
+    for i in range(n_params):
+        # Column 1: Trace plot
+        ax1 = fig.add_subplot(gs[i, 0])
+        for j in range(chain.shape[1]):  # For each walker
+            ax1.plot(chain[:, j, i], alpha=0.3, lw=0.5, color='steelblue')
+        ax1.axvline(burn_in, color='red', linestyle='--', lw=1.5, alpha=0.7)
+        ax1.set_ylabel(all_param_names[i], fontsize=10, fontweight='bold')
+        ax1.set_xlim(0, chain.shape[0])
+        if i == 0:
+            ax1.set_title('MCMC Trace', fontsize=12, fontweight='bold')
+        if i < n_params - 1:
+            ax1.set_xticklabels([])
+        else:
+            ax1.set_xlabel('Step', fontsize=10)
+        ax1.grid(alpha=0.3)
+
+        # Column 2: Posterior histogram
+        ax2 = fig.add_subplot(gs[i, 1])
+        ax2.hist(flat_samples[:, i], bins=50, color='steelblue',
+                 alpha=0.7, edgecolor='black', density=True)
+
+        # Add mean and credible intervals
+        mean_val = np.mean(flat_samples[:, i])
+        q16, q84 = np.percentile(flat_samples[:, i], [16, 84])
+        ax2.axvline(mean_val, color='red', linestyle='-', lw=2, label=f'Mean: {mean_val:.3f}')
+        ax2.axvline(q16, color='orange', linestyle='--', lw=1.5, alpha=0.7)
+        ax2.axvline(q84, color='orange', linestyle='--', lw=1.5, alpha=0.7)
+        ax2.fill_betweenx([0, ax2.get_ylim()[1]], q16, q84, alpha=0.2, color='orange',
+                          label=f'68% CI: [{q16:.3f}, {q84:.3f}]')
+
+        if i == 0:
+            ax2.set_title('Posterior Distribution', fontsize=12, fontweight='bold')
+        ax2.set_xlabel(all_param_names[i], fontsize=9)
+        ax2.set_ylabel('Density', fontsize=9)
+        ax2.legend(fontsize=7, loc='best')
+        ax2.grid(alpha=0.3)
+
+        # Column 3: Autocorrelation
+        ax3 = fig.add_subplot(gs[i, 2])
+
+        # Compute autocorrelation for all walkers and average
+        maxlag = 100
+        autocorrs = []
+        for j in range(chain.shape[1]):
+            # Use samples after burn-in for autocorrelation
+            samples_walker = chain[burn_in:, j, i]
+            if len(samples_walker) > maxlag:
+                autocorr = compute_autocorr(samples_walker, maxlag)
+                autocorrs.append(autocorr)
+
+        if autocorrs:
+            mean_autocorr = np.mean(autocorrs, axis=0)
+            std_autocorr = np.std(autocorrs, axis=0)
+            lags = np.arange(len(mean_autocorr))
+
+            ax3.plot(lags, mean_autocorr, 'o-', color='steelblue', lw=2, markersize=3)
+            ax3.fill_between(lags, mean_autocorr - std_autocorr, mean_autocorr + std_autocorr,
+                            alpha=0.3, color='steelblue')
+            ax3.axhline(0, color='black', linestyle='-', lw=0.8, alpha=0.5)
+            ax3.axhline(0.1, color='red', linestyle='--', lw=1, alpha=0.5, label='Threshold=0.1')
+
+            # Find autocorrelation length (where it crosses 0.1)
+            try:
+                acorr_length = np.where(mean_autocorr < 0.1)[0][0]
+                ax3.text(0.95, 0.95, f'τ ≈ {acorr_length}',
+                        transform=ax3.transAxes, fontsize=8,
+                        verticalalignment='top', horizontalalignment='right',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+            except:
+                pass
+
+        if i == 0:
+            ax3.set_title('Autocorrelation', fontsize=12, fontweight='bold')
+        ax3.set_xlabel('Lag', fontsize=9)
+        ax3.set_ylabel('ACF', fontsize=9)
+        ax3.set_ylim(-0.1, 1.1)
+        ax3.legend(fontsize=7, loc='best')
+        ax3.grid(alpha=0.3)
+
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Saved: {save_path}")
@@ -797,13 +895,14 @@ def plot_correlation_matrix(samples, save_path='correlation_matrix.png'):
     print("\nGenerating correlation matrix...")
 
     corr_matrix = np.corrcoef(samples.T)
+    n_params = len(all_param_names)
 
     fig, ax = plt.subplots(figsize=(14, 12))
 
     im = ax.imshow(corr_matrix, cmap='RdBu_r', vmin=-1, vmax=1, aspect='auto')
 
-    ax.set_xticks(range(20))
-    ax.set_yticks(range(20))
+    ax.set_xticks(range(n_params))
+    ax.set_yticks(range(n_params))
     ax.set_xticklabels(all_param_names, rotation=90, fontsize=10)
     ax.set_yticklabels(all_param_names, fontsize=10)
 
@@ -812,8 +911,8 @@ def plot_correlation_matrix(samples, save_path='correlation_matrix.png'):
     cbar.set_label('Correlation', fontsize=12)
 
     # Add correlation values
-    for i in range(20):
-        for j in range(20):
+    for i in range(n_params):
+        for j in range(n_params):
             text = ax.text(j, i, f'{corr_matrix[i, j]:.2f}',
                           ha="center", va="center", color="black", fontsize=6)
 
@@ -910,13 +1009,14 @@ def plot_elasticity_heatmap(best_params, t_eval, data_matrix, save_path='elastic
 
     # Compute elasticity for control condition
     elasticity = compute_elasticity(best_params, t_eval, data_matrix, treatment_idx=2)
+    n_params = len(all_param_names)
 
     fig, ax = plt.subplots(figsize=(14, 10))
 
     im = ax.imshow(elasticity, cmap='RdBu_r', aspect='auto',
                    vmin=-np.abs(elasticity).max(), vmax=np.abs(elasticity).max())
 
-    ax.set_yticks(range(20))
+    ax.set_yticks(range(n_params))
     ax.set_yticklabels(all_param_names, fontsize=10)
     ax.set_xticks(range(0, len(t_eval), 2))
     ax.set_xticklabels(t_eval[::2], fontsize=9)
@@ -965,13 +1065,13 @@ def plot_sobol_indices(Si, save_path='sobol_indices.png'):
 # ==============================
 
 if __name__ == "__main__":
-    # Parameter bounds (same as before)
+    # Parameter bounds (12 kinetic + 7 influx = 19 total)
     param_bounds = [
         (1e-3, 20), (1e-3, 20), (1e-3, 20), (1e-3, 20),
         (1e-3, 20), (1e-3, 20), (1e-3, 5), (1e-3, 20),
         (1e-3, 5), (1e-3, 5), (1e-3, 5), (1, 50),
         (0.1, 100), (0.1, 100), (0.1, 100), (0.1, 100),
-        (0.1, 100), (0.1, 100), (0.1, 100), (0.1, 100),
+        (0.1, 100), (0.1, 100), (0.1, 100),
     ]
 
     print("="*70)
@@ -1009,27 +1109,30 @@ if __name__ == "__main__":
     # 2. Log Posterior
     plot_log_posterior(sampler, burn_in=1000, save_path='log_posterior.png')
 
-    # 3. Eigenvalues
+    # 3. Comprehensive Parameter Diagnostics (Trace + Posterior + Autocorr)
+    plot_parameter_diagnostics(sampler, burn_in=1000, save_path='parameter_diagnostics.png')
+
+    # 4. Eigenvalues
     fisher, eigenvalues = compute_fisher_information(best_params, t_eval, data_matrix)
     plot_eigenvalues(eigenvalues, save_path='eigenvalues.png')
 
-    # 4. Correlation Matrix
+    # 5. Correlation Matrix
     plot_correlation_matrix(samples, save_path='correlation_matrix.png')
 
-    # 5. Profile Likelihood
+    # 6. Profile Likelihood
     plot_profile_likelihood_grid(best_params, t_eval, data_matrix, param_bounds,
                                  save_path='profile_likelihood.png')
 
-    # 6. Diagnostics (Corner plot)
+    # 7. Diagnostics (Corner plot)
     plot_diagnostics(samples, save_path='diagnostics.png')
 
-    # 7. Bifurcation Analysis
+    # 8. Bifurcation Analysis
     plot_bifurcation(best_params, save_path='bifurcation.png')
 
-    # 8. Elasticity Heatmap
+    # 9. Elasticity Heatmap
     plot_elasticity_heatmap(best_params, t_eval, data_matrix, save_path='elasticity.png')
 
-    # 9. Sobol Sensitivity Analysis
+    # 10. Sobol Sensitivity Analysis
     Si = run_sobol_analysis(param_bounds, t_eval, data_matrix, n_samples=512)
     plot_sobol_indices(Si, save_path='sobol_indices.png')
 
@@ -1040,6 +1143,7 @@ if __name__ == "__main__":
     print("  - fitted_parameters_multicore.txt")
     print("  - mcmc_traces.png")
     print("  - log_posterior.png")
+    print("  - parameter_diagnostics.png (NEW: Trace + Posterior + Autocorr for each param)")
     print("  - eigenvalues.png")
     print("  - correlation_matrix.png")
     print("  - profile_likelihood.png")
