@@ -468,9 +468,12 @@ def log_probability(params, lower_bounds, upper_bounds, t_eval, data_matrix):
 # MCMC Sampling with emcee
 # ------------------------------
 def run_mcmc(initial_params, t_eval, data_matrix, param_bounds,
-             nwalkers=32, nsteps=5000, burn_in=1000):
+             nwalkers=48, nsteps=5000, burn_in=1000):
     """
     Run MCMC sampling using emcee
+
+    Note: nwalkers must be at least 2 * ndim (40 for 20 parameters)
+    Default is 48 walkers for better exploration
     """
     print("\n" + "="*70)
     print("RUNNING MCMC SAMPLING")
@@ -479,6 +482,13 @@ def run_mcmc(initial_params, t_eval, data_matrix, param_bounds,
     ndim = len(initial_params)
     lower_bounds = np.array([b[0] for b in param_bounds])
     upper_bounds = np.array([b[1] for b in param_bounds])
+
+    # Ensure we have enough walkers (emcee requires at least 2 * ndim)
+    min_walkers = 2 * ndim
+    if nwalkers < min_walkers:
+        print(f"Warning: nwalkers={nwalkers} is less than 2*ndim={min_walkers}")
+        print(f"Increasing nwalkers to {min_walkers}")
+        nwalkers = min_walkers
 
     # Initialize walkers around the best-fit parameters
     pos = initial_params + 1e-2 * np.random.randn(nwalkers, ndim) * initial_params
@@ -985,7 +995,7 @@ if __name__ == "__main__":
     # Step 2: MCMC Sampling
     sampler, samples, log_prob_samples = run_mcmc(
         best_params, t_eval, data_matrix, param_bounds,
-        nwalkers=32, nsteps=3000, burn_in=1000
+        nwalkers=48, nsteps=3000, burn_in=1000
     )
 
     # Step 3: Generate all diagnostic plots

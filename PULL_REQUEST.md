@@ -21,7 +21,7 @@ This PR adds comprehensive multicore parameter estimation and diagnostic analysi
 - **MCMC parameter traces plot** - Evolution of all 20 parameters
 - **Log posterior plot** - Convergence monitoring
 - Bayesian uncertainty quantification using `emcee`
-- 32 walkers, 3000 steps with 1000 burn-in
+- 48 walkers, 3000 steps with 1000 burn-in (minimum 40 walkers required for 20 parameters)
 
 ### ✅ 3. Identifiability Analysis
 - **Eigenvalues plot** - Fisher Information Matrix spectrum

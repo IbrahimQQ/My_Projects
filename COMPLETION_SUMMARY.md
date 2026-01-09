@@ -29,7 +29,7 @@ You asked for:
 
 **Features**:
 - ✅ Multicore parallel processing using `multiprocessing`
-- ✅ MCMC sampling with `emcee` (32 walkers, 3000 steps)
+- ✅ MCMC sampling with `emcee` (48 walkers, 3000 steps)
 - ✅ Fisher Information Matrix with eigenvalue analysis
 - ✅ Parameter correlation matrix from MCMC samples
 - ✅ Profile likelihood for all kinetic parameters
@@ -151,7 +151,7 @@ Running parameter estimation with 30 initial guesses...
 [Progress bars and status updates]
 
 RUNNING MCMC SAMPLING
-Running 32 walkers for 3000 steps...
+Running 48 walkers for 3000 steps...
 [MCMC progress bar]
 
 RUNNING SOBOL SENSITIVITY ANALYSIS
@@ -192,18 +192,18 @@ python visualize_results.py
 | Component | Time |
 |-----------|------|
 | Parallel optimization | 3-5 min |
-| MCMC sampling | 15-30 min |
+| MCMC sampling | 20-40 min |
 | Fisher Information | 2-5 min |
 | Profile likelihood | 3-5 min |
 | Elasticity | 1-2 min |
 | Sobol analysis | 10-20 min |
 | Bifurcation | 2-3 min |
 | Plotting | 1-2 min |
-| **TOTAL** | **35-75 min** |
+| **TOTAL** | **40-85 min** |
 
 ### Memory Usage
 - Peak RAM: ~500 MB - 1 GB
-- MCMC samples: ~40 MB
+- MCMC samples: ~55 MB
 - Safe for systems with 4+ GB RAM
 
 ---

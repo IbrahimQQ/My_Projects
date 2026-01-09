@@ -78,11 +78,11 @@ This will:
 
 The full analysis includes:
 - **Parallel optimization**: ~2-5 minutes (with multicore)
-- **MCMC sampling**: ~10-30 minutes (3000 steps, 32 walkers)
+- **MCMC sampling**: ~15-40 minutes (3000 steps, 48 walkers)
 - **Sobol analysis**: ~5-15 minutes (512 samples)
 - **Other diagnostics**: ~5-10 minutes
 
-**Total runtime**: ~30-60 minutes (depending on CPU cores)
+**Total runtime**: ~35-75 minutes (depending on CPU cores)
 
 ### Outputs
 
@@ -150,10 +150,10 @@ Implements Bayesian inference using `emcee`:
 
 ```python
 run_mcmc(initial_params, t_eval, data_matrix, param_bounds,
-         nwalkers=32, nsteps=3000, burn_in=1000)
+         nwalkers=48, nsteps=3000, burn_in=1000)
 ```
 
-- 32 walkers for robust exploration
+- 48 walkers for robust exploration (minimum 40 required for 20 parameters)
 - 3000 MCMC steps (1000 burn-in)
 - Produces posterior distributions for uncertainty quantification
 

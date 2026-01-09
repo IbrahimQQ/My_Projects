@@ -22,7 +22,7 @@
 
 **Implementation**: `run_mcmc()` + `plot_mcmc_traces()`
 - MCMC sampler: `emcee` (Affine-Invariant Ensemble Sampler)
-- Default: 32 walkers, 3000 steps, 1000 burn-in
+- Default: 48 walkers, 3000 steps, 1000 burn-in
 - Outputs: `mcmc_traces.png` (20 subplots, one per parameter)
 
 **Plot shows**:
@@ -256,7 +256,7 @@
 ### Computation Time (approximate)
 - **Quick test**: < 10 seconds
 - **Parallel optimization**: 3-5 minutes (with 8 cores)
-- **MCMC sampling**: 15-30 minutes (3000 steps × 32 walkers)
+- **MCMC sampling**: 20-40 minutes (3000 steps × 48 walkers)
 - **Fisher Information**: 2-5 minutes
 - **Profile likelihood**: 3-5 minutes (15 points × 12 parameters)
 - **Elasticity analysis**: 1-2 minutes
@@ -264,10 +264,10 @@
 - **Bifurcation**: 2-3 minutes
 - **Plotting**: 1-2 minutes
 
-**Total**: ~35-75 minutes (highly parallel components use all cores)
+**Total**: ~40-85 minutes (highly parallel components use all cores)
 
 ### Memory Usage
-- MCMC samples: ~40 MB (32 walkers × 3000 steps × 20 params × 8 bytes)
+- MCMC samples: ~55 MB (48 walkers × 3000 steps × 20 params × 8 bytes)
 - Sobol samples: ~15 MB
 - Peak RAM: ~500 MB - 1 GB
 - Safe for systems with 4+ GB RAM
