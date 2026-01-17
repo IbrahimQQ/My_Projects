@@ -12,27 +12,29 @@ import time
 # ------------------------------
 # Experimental data (VENUS fold change)
 # ------------------------------
+# Columns: 100iaa, control, 50paa, 500paa, 5upaa, 50then100, 500then100, 5uthen100
+# (5nM PAA data removed: 5paa and 5then100)
 data_matrix = np.array([
-    [1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.8523048   , 1.087544    , 0.9649733   , 1.166976    , 0.918218    , 0.966466    , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.6827122   , 1.08695     , 0.9568927   , 1.085554    , 0.8876873   , 0.9348458   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.6039012   , 1.103395    , 0.8308875   , 0.987356    , 0.80062     , 0.8261556   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.4960662   , 0.9315695   , 0.809217    , 0.9792683   , 0.81247     , 0.9108808   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.5136364   , 0.9495908   , 0.7883567   , 0.8671327   , 0.7368553   , 0.8057324   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.5333068   , 0.8594795   , 0.777324    , 1.035506    , 0.8065013   , 0.7686848   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.3923052   , 0.9433322   , 0.7269902   , 1.027591    , 0.840719    , 0.7561538   , 1.0         , 1.0         , 1.0         , 1.0         ],
-    [0.3386606   , 0.9532562   , 0.7498968   , 0.9676473   , 0.7643677   , 0.6663518   , 0.7514892   , 0.873957    , 0.9182737   , 0.8620715   ],
-    [0.2934868   , 0.9783455   , 0.793647    , 1.047304    , 0.781112    , 0.6994382   , 0.816073    , 0.8477453   , 0.9288223   , 0.7836655   ],
-    [0.3239684   , 1.032918    , 0.793091    , 0.968032    , 0.73581     , 0.6369738   , 0.6846347   , 0.7563447   , 0.6402197   , 0.7919083   ],
-    [0.2830352   , 0.9254622   , 0.8144522   , 1.072704    , 0.801594    , 0.6702864   , 0.6529985   , 0.6293247   , 0.8064763   , 0.7053645   ],
-    [0.2729652   , 0.9316605   , 0.8510785   , 1.153924    , 0.810091    , 0.6483174   , 0.6470235   , 0.5316817   , 0.753376    , 0.739992    ],
-    [0.270844    , 0.8821205   , 0.8415182   , 0.9468663   , 0.8085713   , 0.5959894   , 0.60346     , 0.541956    , 0.7471405   , 0.6485895   ],
-    [0.2968902   , 0.8597067   , 0.8177287   , 0.9426123   , 0.6316327   , 0.629189    , 0.5224148   , 0.5168547   , 0.660822    , 0.6483463   ],
-    [0.2502296   , 0.8454915   , 0.8045162   , 0.927739    , 0.6316327   , 0.6230858   , 0.5122045   , 0.482083    , 0.7224945   , 0.6616935   ]
+    [1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         , 1.0         ],
+    [0.8523048   , 0.9649733   , 1.166976    , 0.918218    , 0.966466    , 1.0         , 1.0         , 1.0         ],
+    [0.6827122   , 0.9568927   , 1.085554    , 0.8876873   , 0.9348458   , 1.0         , 1.0         , 1.0         ],
+    [0.6039012   , 0.8308875   , 0.987356    , 0.80062     , 0.8261556   , 1.0         , 1.0         , 1.0         ],
+    [0.4960662   , 0.809217    , 0.9792683   , 0.81247     , 0.9108808   , 1.0         , 1.0         , 1.0         ],
+    [0.5136364   , 0.7883567   , 0.8671327   , 0.7368553   , 0.8057324   , 1.0         , 1.0         , 1.0         ],
+    [0.5333068   , 0.777324    , 1.035506    , 0.8065013   , 0.7686848   , 1.0         , 1.0         , 1.0         ],
+    [0.3923052   , 0.7269902   , 1.027591    , 0.840719    , 0.7561538   , 1.0         , 1.0         , 1.0         ],
+    [0.3386606   , 0.7498968   , 0.9676473   , 0.7643677   , 0.6663518   , 0.873957    , 0.9182737   , 0.8620715   ],
+    [0.2934868   , 0.793647    , 1.047304    , 0.781112    , 0.6994382   , 0.8477453   , 0.9288223   , 0.7836655   ],
+    [0.3239684   , 0.793091    , 0.968032    , 0.73581     , 0.6369738   , 0.7563447   , 0.6402197   , 0.7919083   ],
+    [0.2830352   , 0.8144522   , 1.072704    , 0.801594    , 0.6702864   , 0.6293247   , 0.8064763   , 0.7053645   ],
+    [0.2729652   , 0.8510785   , 1.153924    , 0.810091    , 0.6483174   , 0.5316817   , 0.753376    , 0.739992    ],
+    [0.270844    , 0.8415182   , 0.9468663   , 0.8085713   , 0.5959894   , 0.541956    , 0.7471405   , 0.6485895   ],
+    [0.2968902   , 0.8177287   , 0.9426123   , 0.6316327   , 0.629189    , 0.5168547   , 0.660822    , 0.6483463   ],
+    [0.2502296   , 0.8045162   , 0.927739    , 0.6316327   , 0.6230858   , 0.482083    , 0.7224945   , 0.6616935   ]
 ], dtype=float)
 
-labels = ['100iaa', '5paa', 'control', '50paa', '500paa', '5upaa',
-          '5then100', '50then100', '500then100', '5uthen100']
+labels = ['100iaa', 'control', '50paa', '500paa', '5upaa',
+          '50then100', '500then100', '5uthen100']
 
 dt_minutes = 4.0
 t_eval = np.arange(data_matrix.shape[0], dtype=float) * dt_minutes
@@ -91,7 +93,8 @@ def simulate_series(initial_V, p1, lam, p2, q_function, t_eval):
 # Residual and Objective Functions
 # ------------------------------
 def build_residuals(params, t_eval, data_matrix, weights=None):
-    p1, qI, q0, qP_5nM, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2 = params
+    """Build residuals for 8 treatments (5nM PAA removed)"""
+    p1, qI, q0, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2 = params
 
     if weights is None:
         weights = np.ones_like(data_matrix)
@@ -102,25 +105,21 @@ def build_residuals(params, t_eval, data_matrix, weights=None):
         series = data_matrix[:, j]
         V0 = series[0]
 
-        if j == 0:
+        if j == 0:  # 100iaa
             qfun = q_const_builder(qI)
-        elif j == 1:
-            qfun = q_const_builder(qP_5nM)
-        elif j == 2:
+        elif j == 1:  # control
             qfun = q_const_builder(q0)
-        elif j == 3:
+        elif j == 2:  # 50paa
             qfun = q_const_builder(qP_50nM)
-        elif j == 4:
+        elif j == 3:  # 500paa
             qfun = q_const_builder(qP_500nM)
-        elif j == 5:
+        elif j == 4:  # 5upaa
             qfun = q_const_builder(qP_5uM)
-        elif j == 6:
-            qfun = q_sequential_builder(qP_5nM, qI, rho, t_switch)
-        elif j == 7:
+        elif j == 5:  # 50then100
             qfun = q_sequential_builder(qP_50nM, qI, rho, t_switch)
-        elif j == 8:
+        elif j == 6:  # 500then100
             qfun = q_sequential_builder(qP_500nM, qI, rho, t_switch)
-        elif j == 9:
+        elif j == 7:  # 5uthen100
             qfun = q_sequential_builder(qP_5uM, qI, rho, t_switch)
 
         sim = simulate_series(V0, p1, lam, p2, qfun, t_eval)
@@ -128,7 +127,7 @@ def build_residuals(params, t_eval, data_matrix, weights=None):
         if (sim is None) or np.any(~np.isfinite(sim)):
             residuals.extend(np.full_like(series, 1e3))
         else:
-            if j >= 6:
+            if j >= 5:  # Sequential treatments
                 mask = t_eval >= 32
                 residuals.extend(weights[mask, j] * (sim[mask] - series[mask]))
             else:
@@ -160,14 +159,14 @@ def latin_hypercube(n_samples, dim, low, high, rng):
 # ==============================
 
 def fit_single_run(t_eval, data_matrix, n_starts, seed, method='trf', loss='soft_l1'):
-    """Single fitting run with specified method and loss"""
+    """Single fitting run with specified method and loss (9 parameters, 5nM PAA removed)"""
     rng = np.random.default_rng(seed)
 
-    lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6], dtype=float)
-    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0], dtype=float)
+    lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6], dtype=float)
+    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0], dtype=float)
 
-    lhs_low  = np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0, 0.01, 0.05], dtype=float)
-    lhs_high = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 2.0, 0.5, 1.0], dtype=float)
+    lhs_low  = np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0, 0.01, 0.05], dtype=float)
+    lhs_high = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 2.0, 0.5, 1.0], dtype=float)
 
     starts = latin_hypercube(n_starts, len(lower), lhs_low, lhs_high, rng)
 
@@ -222,7 +221,7 @@ def fit_with_ensemble(t_eval, data_matrix, n_runs=5, n_starts=50):
     std_params = np.std(all_params, axis=0)
     cv_params = std_params / (np.abs(mean_params) + 1e-10)
 
-    param_names = ['p1', 'qI', 'q0', 'qP_5nM', 'qP_50nM', 'qP_500nM', 'qP_5uM', 'rho', 'lam', 'p2']
+    param_names = ['p1', 'qI', 'q0', 'qP_50nM', 'qP_500nM', 'qP_5uM', 'rho', 'lam', 'p2']
 
     print(f"\n{'='*70}")
     print("ENSEMBLE RESULTS")
@@ -313,8 +312,8 @@ def fit_with_differential_evolution(t_eval, data_matrix, maxiter=500):
     print("="*70)
     print("This is a global optimizer - may take several minutes...")
 
-    lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6])
-    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0])
+    lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6])
+    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0])
     bounds = list(zip(lower, upper))
 
     def cost_function(params):
@@ -434,7 +433,7 @@ def robust_fit_comprehensive(t_eval, data_matrix,
     print(f"Total time: {elapsed_total:.1f}s ({elapsed_total/60:.1f} min)")
     print(f"{'='*70}")
 
-    param_names = ['p1', 'qI', 'q0', 'qP_5nM', 'qP_50nM', 'qP_500nM', 'qP_5uM', 'rho', 'lam', 'p2']
+    param_names = ['p1', 'qI', 'q0', 'qP_50nM', 'qP_500nM', 'qP_5uM', 'rho', 'lam', 'p2']
     print(f"\n{'Parameter':<12} {'Value':<12}")
     print("-" * 30)
     for name, val in zip(param_names, best_params):
@@ -448,8 +447,8 @@ def robust_fit_comprehensive(t_eval, data_matrix,
 # ==============================
 
 def plot_results(params, t_eval, data_matrix, labels, save_path='reduced_model_robust_fit.png'):
-    """Plot fitted results"""
-    p1, qI, q0, qP_5nM, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2 = params
+    """Plot fitted results (8 treatments, 5nM PAA removed)"""
+    p1, qI, q0, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2 = params
 
     plt.rcParams.update({
         "font.family": "Arial",
@@ -459,50 +458,44 @@ def plot_results(params, t_eval, data_matrix, labels, save_path='reduced_model_r
         "legend.fontsize": 10,
     })
 
-    fig = plt.figure(figsize=(16, 12))
-    colors_constant = plt.cm.tab10(np.linspace(0, 1, 6))
-    colors_then = plt.cm.Set2(np.linspace(0, 1, 4))
+    fig = plt.figure(figsize=(16, 8))
+    colors_constant = plt.cm.tab10(np.linspace(0, 1, 5))
+    colors_then = plt.cm.Set2(np.linspace(0, 1, 3))
 
     for j, name in enumerate(labels):
         series = data_matrix[:, j]
         V0 = series[0]
 
-        if j == 0:
+        if j == 0:  # 100iaa
             qfun = q_const_builder(qI)
             color = colors_constant[0]
-        elif j == 1:
-            qfun = q_const_builder(qP_5nM)
-            color = colors_constant[1]
-        elif j == 2:
+        elif j == 1:  # control
             qfun = q_const_builder(q0)
-            color = colors_constant[2]
-        elif j == 3:
+            color = colors_constant[1]
+        elif j == 2:  # 50paa
             qfun = q_const_builder(qP_50nM)
-            color = colors_constant[3]
-        elif j == 4:
+            color = colors_constant[2]
+        elif j == 3:  # 500paa
             qfun = q_const_builder(qP_500nM)
-            color = colors_constant[4]
-        elif j == 5:
+            color = colors_constant[3]
+        elif j == 4:  # 5upaa
             qfun = q_const_builder(qP_5uM)
-            color = colors_constant[5]
-        elif j == 6:
-            qfun = q_sequential_builder(qP_5nM, qI, rho, t_switch)
-            color = colors_then[0]
-        elif j == 7:
+            color = colors_constant[4]
+        elif j == 5:  # 50then100
             qfun = q_sequential_builder(qP_50nM, qI, rho, t_switch)
-            color = colors_then[1]
-        elif j == 8:
+            color = colors_then[0]
+        elif j == 6:  # 500then100
             qfun = q_sequential_builder(qP_500nM, qI, rho, t_switch)
-            color = colors_then[2]
-        elif j == 9:
+            color = colors_then[1]
+        elif j == 7:  # 5uthen100
             qfun = q_sequential_builder(qP_5uM, qI, rho, t_switch)
-            color = colors_then[3]
+            color = colors_then[2]
 
         sim = simulate_series(V0, p1, lam, p2, qfun, t_eval)
 
-        ax = plt.subplot(3, 4, j+1)
+        ax = plt.subplot(2, 4, j+1)
 
-        if j >= 6:
+        if j >= 5:  # Sequential treatments
             mask = t_eval >= 32
             ax.plot(t_eval[mask], series[mask], 'o', markersize=6,
                    color=color, label='Data', alpha=0.7)
@@ -527,9 +520,6 @@ def plot_results(params, t_eval, data_matrix, labels, save_path='reduced_model_r
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
-    fig.delaxes(fig.axes[10])
-    fig.delaxes(fig.axes[10])
-
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"\nPlot saved: {save_path}")
@@ -542,7 +532,7 @@ def plot_results(params, t_eval, data_matrix, labels, save_path='reduced_model_r
 
 if __name__ == "__main__":
     print("="*70)
-    print("ROBUST REDUCED MODEL PARAMETER ESTIMATION - FULL DATA")
+    print("ROBUST REDUCED MODEL PARAMETER ESTIMATION - FULL DATA (8 TREATMENTS)")
     print("="*70)
 
     # Choose robustness level:
@@ -572,7 +562,7 @@ if __name__ == "__main__":
 
     # Save results
     np.savetxt('reduced_model_robust_parameters.txt', best_params,
-               header='Robust parameters: p1, qI, q0, qP_5nM, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2')
+               header='Robust parameters: p1, qI, q0, qP_50nM, qP_500nM, qP_5uM, rho, lam, p2')
     print("\nParameters saved to: reduced_model_robust_parameters.txt")
 
     # Plot results
