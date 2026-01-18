@@ -162,11 +162,12 @@ def fit_single_run(t_eval, data_matrix, n_starts, seed, method='trf', loss='soft
     """Single fitting run with specified method and loss (9 parameters, 5nM PAA removed)"""
     rng = np.random.default_rng(seed)
 
+    # Relaxed p2 upper bound from 5.0 to 20.0 to avoid boundary constraint
     lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6], dtype=float)
-    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0], dtype=float)
+    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 20.0], dtype=float)
 
     lhs_low  = np.array([0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0, 0.01, 0.05], dtype=float)
-    lhs_high = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 2.0, 0.5, 1.0], dtype=float)
+    lhs_high = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 2.0, 0.5, 2.0], dtype=float)
 
     starts = latin_hypercube(n_starts, len(lower), lhs_low, lhs_high, rng)
 
@@ -312,8 +313,9 @@ def fit_with_differential_evolution(t_eval, data_matrix, maxiter=500):
     print("="*70)
     print("This is a global optimizer - may take several minutes...")
 
+    # Relaxed p2 upper bound from 5.0 to 20.0 to avoid boundary constraint
     lower = np.array([1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 0.0, 1e-6, 1e-6])
-    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 5.0])
+    upper = np.array([50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 5.0, 2.0, 20.0])
     bounds = list(zip(lower, upper))
 
     def cost_function(params):
